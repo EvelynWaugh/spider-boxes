@@ -1,0 +1,31 @@
+{
+    "name": "spiderboxes/spider-boxes",
+    "description": "A WordPress plugin for creating custom meta boxes",
+    "type": "wordpress-plugin",
+    "license": "GPL-2.0-or-later",
+    "authors": [
+        {
+            "name": "Your Name",
+            "email": "your.email@example.com"
+        }
+    ],
+    "minimum-stability": "stable",
+    "require": {
+        "php": ">=8.2",
+        "php-di/php-di": "^7.0.11",
+        "illuminate/collections": "^12.17.0",
+        "stellarwp/db": "^1.1.1"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^10.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "SpiderBoxes\\": "includes/"
+        }
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "classmap-authoritative": true
+    }
+}
