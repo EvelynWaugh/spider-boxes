@@ -54,18 +54,19 @@ class ReviewsManager {
 	 */
 	public function get_reviews( $args = array() ) {
 		$defaults = array(
-			'post_type'  => 'product',
-			'status'     => 'all',
-			'meta_query' => array(
+			'post_type'     => 'product',
+			'status'        => 'all',
+			'meta_query'    => array(
 				array(
 					'key'     => 'rating',
 					'compare' => 'EXISTS',
 				),
 			),
-			'number'     => 20,
-			'offset'     => 0,
-			'orderby'    => 'comment_date',
-			'order'      => 'DESC',
+			'number'        => 20,
+			'offset'        => 0,
+			'orderby'       => 'comment_date',
+			'order'         => 'DESC',
+			'no_found_rows' => false, // for pagination
 		);
 
 		$args = wp_parse_args( $args, $defaults );

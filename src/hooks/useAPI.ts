@@ -37,14 +37,20 @@ export const useAPI = () => {
               `HTTP ${response.status}: ${response.statusText}`
           );
         }
+        const data = await response.json();
 
-        const data: APIResponse<T> = await response.json();
-
-        if (!data.success) {
-          throw new Error(data.message || "API request failed");
+        // Check if this is the expected APIResponse format
+        if (data && typeof data === "object" && "success" in data) {
+          // This is a wrapped API response
+          const apiResponse: APIResponse<T> = data;
+          if (!apiResponse.success) {
+            throw new Error(apiResponse.message || "API request failed");
+          }
+          return apiResponse.data;
+        } else {
+          // This is a direct response (like reviews endpoint)
+          return data as T;
         }
-
-        return data.data;
       } catch (error) {
         if (error instanceof Error) {
           throw error;
