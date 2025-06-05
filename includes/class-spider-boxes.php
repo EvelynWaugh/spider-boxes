@@ -52,9 +52,16 @@ class SpiderBoxes {
 	 * Constructor
 	 */
 	private function __construct() {
+		$this->setup_database();
 		$this->setup_container();
 		$this->init_hooks();
 		$this->init_components();
+	}
+
+	private function setup_database() {
+		require_once SPIDER_BOXES_PLUGIN_DIR . 'includes/Database/DatabaseManager.php';
+		// Create custom database tables if needed.
+		DatabaseManager::create_tables();
 	}
 
 	/**
@@ -67,6 +74,7 @@ class SpiderBoxes {
 		$builder->addDefinitions(
 			array(
 				// Full class names
+
 				FieldRegistry::class     => \DI\autowire(),
 				ComponentRegistry::class => \DI\autowire(),
 				SectionRegistry::class   => \DI\autowire(),
@@ -106,6 +114,7 @@ class SpiderBoxes {
 	 */
 	private function init_components() {
 		try {
+
 			// Initialize core registries
 			$this->container->get( FieldRegistry::class );
 			$this->container->get( ComponentRegistry::class );
@@ -252,12 +261,6 @@ class SpiderBoxes {
 	 * Plugin activation callback
 	 */
 	public function on_activation() {
-		// Create custom database tables if needed.
-		DatabaseManager::create_tables();
-
-		// Set default options.
-		$this->set_default_options();
-
 		// Clear rewrite rules.
 		flush_rewrite_rules();
 	}
@@ -270,23 +273,6 @@ class SpiderBoxes {
 		flush_rewrite_rules();
 	}
 
-
-
-
-	/**
-	 * Set default options
-	 */
-	private function set_default_options() {
-		$default_options = array(
-			'spider_boxes_version'    => SPIDER_BOXES_VERSION,
-			'spider_boxes_db_version' => '1.0.0',
-		);
-		foreach ( $default_options as $option_name => $option_value ) {
-			if ( false === get_option( $option_name ) ) {
-				add_option( $option_name, $option_value );
-			}
-		}
-	}
 
 	/**
 	 * Add module attribute to ES module scripts

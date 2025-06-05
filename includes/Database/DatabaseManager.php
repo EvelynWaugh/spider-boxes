@@ -13,22 +13,34 @@ namespace SpiderBoxes\Database;
 class DatabaseManager {
 
 	/**
+	 * DB Version for custom tables
+	 *
+	 * @var string
+	 */
+	protected static $db_table_version = '1.0.4';
+
+	/**
 	 * Create custom database tables
 	 */
 	public static function create_tables() {
 		global $wpdb;
 
+		$db_version = get_option( 'spider_boxes_db_version', '1.0.0' );
+
+		if ( version_compare( $db_version, self::$db_table_version, '>=' ) ) {
+			return;
+		}
+
 		$charset_collate = $wpdb->get_charset_collate();
 
 		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
-
 		// Field configurations table.
 		$fields_table = $wpdb->prefix . 'spider_boxes_fields';
 		$fields_sql   = "CREATE TABLE $fields_table (
 			id varchar(255) NOT NULL,
 			type varchar(50) NOT NULL,
 			title varchar(255) NOT NULL,
-			description text DEFAULT '',
+			description text,
 			parent varchar(255) DEFAULT '',
 			context varchar(50) DEFAULT 'default',
 			value longtext,
@@ -59,7 +71,6 @@ class DatabaseManager {
 			KEY meta_key (meta_key),
 			KEY context (context)
 		) $charset_collate;";
-
 		// Field types table for registered field types.
 		$field_types_table = $wpdb->prefix . 'spider_boxes_field_types';
 		$field_types_sql   = "CREATE TABLE $field_types_table (
@@ -68,7 +79,7 @@ class DatabaseManager {
 			class_name varchar(255) NOT NULL,
 			category varchar(100) DEFAULT 'general',
 			icon varchar(100) DEFAULT 'component',
-			description text DEFAULT '',
+			description text,
 			supports longtext,
 			is_active tinyint(1) DEFAULT 1,
 			sort_order int(11) DEFAULT 0,
@@ -81,12 +92,13 @@ class DatabaseManager {
 			KEY sort_order (sort_order)
 		) $charset_collate;";
 
-		dbDelta( $fields_sql );
-		dbDelta( $meta_sql );
-		dbDelta( $field_types_sql );
-
-		// Insert default field types.
-		self::insert_default_field_types();
+		if ( version_compare( $db_version, self::$db_table_version, '<' ) ) {
+			dbDelta( $fields_sql );
+			dbDelta( $meta_sql );
+			dbDelta( $field_types_sql );
+			// Insert default field types.
+			self::insert_default_field_types();
+		}
 	}
 
 	/**

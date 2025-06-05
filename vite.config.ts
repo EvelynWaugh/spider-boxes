@@ -7,6 +7,25 @@ const __dirname = fileURLToPath(new URL(".", import.meta.url));
 
 export default defineConfig({
   plugins: [react()],
+  server: {
+    watch: {
+      // Only watch frontend source files in dev mode
+      include: ["**/src/**/*"],
+      ignored: [
+        "**/*.php",
+        "**/includes/**",
+        "**/vendor/**",
+        "**/tests/**",
+        "**/node_modules/**",
+        "**/assets/dist/**",
+        "**/.git/**",
+        "**/composer.json",
+        "**/composer.lock",
+        "**/phpcs.xml",
+        "**/phpunit.xml",
+      ],
+    },
+  },
   build: {
     outDir: "assets/dist",
     emptyOutDir: true,
@@ -21,10 +40,25 @@ export default defineConfig({
         chunkFileNames: "[name]-[hash].js",
         assetFileNames: "[name].[ext]",
       },
-      external: [], // Don't externalize for now
+      external: [],
     },
     manifest: true,
     write: true,
+    // Configure build watch mode to exclude PHP files
+    watch: {
+      include: ["src/**/*"],
+      exclude: [
+        "**/*.php",
+        "**/includes/**",
+        "**/vendor/**",
+        "**/tests/**",
+        "**/node_modules/**",
+        "**/assets/dist/**",
+        "**/.git/**",
+        "**/composer.json",
+        "**/composer.lock",
+      ],
+    },
   },
   resolve: {
     alias: {
