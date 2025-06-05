@@ -27,9 +27,6 @@ class ReviewsManager {
 	 * Constructor
 	 */
 	public function __construct() {
-		// Initialize field registry
-		$this->field_registry = spider_boxes()->get_container()->get( FieldRegistry::class );
-
 		add_action( 'init', array( $this, 'init_hooks' ) );
 	}
 
@@ -37,7 +34,9 @@ class ReviewsManager {
 	 * Initialize hooks
 	 */
 	public function init_hooks() {
-
+		// Initialize field registry
+		$this->field_registry = new FieldRegistry();
+		
 		// Register review fields
 		$this->register_review_fields();
 
@@ -502,8 +501,7 @@ class ReviewsManager {
 	 */
 	public function register_review_fields() {
 		$review_fields = array(
-			'review_author_name'  => array(
-				'id'          => 'review_author_name',
+			'review_author_name' => array(
 				'type'        => 'text',
 				'parent'      => 'review_edit_section',
 				'title'       => esc_html__( 'Author Name', 'spider-boxes' ),
@@ -513,7 +511,6 @@ class ReviewsManager {
 				'context'     => 'review',
 			),
 			'review_author_email' => array(
-				'id'          => 'review_author_email',
 				'type'        => 'text',
 				'parent'      => 'review_edit_section',
 				'title'       => esc_html__( 'Author Email', 'spider-boxes' ),
@@ -522,8 +519,7 @@ class ReviewsManager {
 				'required'    => true,
 				'context'     => 'review',
 			),
-			'review_date'         => array(
-				'id'          => 'review_date',
+			'review_date' => array(
 				'type'        => 'datetime',
 				'parent'      => 'review_edit_section',
 				'title'       => esc_html__( 'Review Date', 'spider-boxes' ),
@@ -531,8 +527,7 @@ class ReviewsManager {
 				'value'       => '',
 				'context'     => 'review',
 			),
-			'review_content'      => array(
-				'id'          => 'review_content',
+			'review_content' => array(
 				'type'        => 'textarea',
 				'parent'      => 'review_edit_section',
 				'title'       => esc_html__( 'Review Content', 'spider-boxes' ),
@@ -542,8 +537,7 @@ class ReviewsManager {
 				'required'    => true,
 				'context'     => 'review',
 			),
-			'review_rating'       => array(
-				'id'          => 'review_rating',
+			'review_rating' => array(
 				'type'        => 'range',
 				'parent'      => 'review_edit_section',
 				'title'       => esc_html__( 'Rating', 'spider-boxes' ),
@@ -554,8 +548,7 @@ class ReviewsManager {
 				'step'        => 1,
 				'context'     => 'review',
 			),
-			'review_status'       => array(
-				'id'          => 'review_status',
+			'review_status' => array(
 				'type'        => 'select',
 				'parent'      => 'review_edit_section',
 				'title'       => esc_html__( 'Status', 'spider-boxes' ),
@@ -565,13 +558,13 @@ class ReviewsManager {
 					'approved' => array(
 						'label' => esc_html__( 'Approved', 'spider-boxes' ),
 					),
-					'pending'  => array(
+					'pending' => array(
 						'label' => esc_html__( 'Pending', 'spider-boxes' ),
 					),
-					'spam'     => array(
+					'spam' => array(
 						'label' => esc_html__( 'Spam', 'spider-boxes' ),
 					),
-					'trash'    => array(
+					'trash' => array(
 						'label' => esc_html__( 'Trash', 'spider-boxes' ),
 					),
 				),
@@ -601,11 +594,8 @@ class ReviewsManager {
 	 * @return Collection
 	 */
 	public function get_review_fields() {
-		$this->register_review_fields();
-		return $this->field_registry->get_fields()->filter(
-			function ( $field ) {
-				return isset( $field['context'] ) && $field['context'] === 'review';
-			}
-		);
+		return $this->field_registry->get_fields()->filter( function( $field ) {
+			return isset( $field['context'] ) && $field['context'] === 'review';
+		});
 	}
 }

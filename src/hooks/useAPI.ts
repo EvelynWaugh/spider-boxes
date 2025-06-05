@@ -105,6 +105,11 @@ export const useAPI = () => {
     [request]
   );
 
+  // Review fields endpoints
+  const getReviewFields = useCallback(async () => {
+    return await request("/reviews/fields");
+  }, [request]);
+
   return {
     request,
     get,
@@ -112,5 +117,6 @@ export const useAPI = () => {
     put,
     patch,
     del,
+    getReviewFields,
   };
 };

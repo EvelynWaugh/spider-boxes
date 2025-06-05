@@ -46,6 +46,22 @@ import {
   ChevronRightIcon,
 } from "@radix-ui/react-icons";
 import {useAPI} from "../hooks/useAPI";
+import {DynamicFieldRenderer} from "./DynamicFieldRenderer";
+
+interface DynamicField {
+  id: string;
+  type: string;
+  title: string;
+  description?: string;
+  value: any;
+  required?: boolean;
+  options?: Record<string, {label: string; value?: string}>;
+  min?: number;
+  max?: number;
+  step?: number;
+  rows?: number;
+  placeholder?: string;
+}
 
 interface Review {
   id: number;
@@ -116,7 +132,7 @@ const SortableHeaderCell: React.FC<{
 
 export const ReviewsApp: React.FC<ReviewsAppProps> = ({productId}) => {
   const queryClient = useQueryClient();
-  const {get, patch, del} = useAPI();
+  const {get, patch, del, getReviewFields} = useAPI();
 
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -132,6 +148,7 @@ export const ReviewsApp: React.FC<ReviewsAppProps> = ({productId}) => {
   ]);
   const [selectedReview, setSelectedReview] = useState<Review | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [fieldValues, setFieldValues] = useState<Record<string, any>>({});
 
   // Sensors for drag and drop
   const sensors = useSensors(
@@ -140,6 +157,17 @@ export const ReviewsApp: React.FC<ReviewsAppProps> = ({productId}) => {
       coordinateGetter: sortableKeyboardCoordinates,
     })
   );
+
+  // Fetch review fields
+  const {data: fieldsData} = useQuery({
+    queryKey: ["review-fields"],
+    queryFn: getReviewFields,
+    staleTime: 10 * 60 * 1000, // 10 minutes
+  });
+
+  const reviewFields: DynamicField[] = fieldsData?.fields
+    ? Object.values(fieldsData.fields)
+    : [];
   // Fetch reviews
   const {
     data: reviewsData,
@@ -598,70 +626,150 @@ export const ReviewsApp: React.FC<ReviewsAppProps> = ({productId}) => {
           <DialogHeader>
             <DialogTitle>Edit Review</DialogTitle>
           </DialogHeader>
-          {selectedReview && (
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Status
-                </label>
-                <select
-                  value={selectedReview.status}
-                  onChange={(e) => {
-                    const newStatus = e.target.value as Review["status"];
-                    handleStatusChange(selectedReview.id, newStatus);
-                    setSelectedReview({...selectedReview, status: newStatus});
-                  }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-                >
-                  <option value="approved">Approved</option>
-                  <option value="pending">Pending</option>
-                  <option value="spam">Spam</option>
-                  <option value="trash">Trash</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Comment
-                </label>
-                <textarea
-                  value={selectedReview.content}
-                  onChange={(e) =>
-                    setSelectedReview({
-                      ...selectedReview,
-                      content: e.target.value,
-                    })
+          <div>
+            {selectedReview && reviewFields.length > 0 ? (
+              <div className="space-y-4">
+                {reviewFields.map((field) => {
+                  // Map field IDs to review properties
+                  let currentValue;
+                  switch (field.id) {
+                    case "review_author_name":
+                      currentValue =
+                        fieldValues[field.id] || selectedReview.author_name;
+                      break;
+                    case "review_author_email":
+                      currentValue =
+                        fieldValues[field.id] || selectedReview.author_email;
+                      break;
+                    case "review_date":
+                      currentValue =
+                        fieldValues[field.id] || selectedReview.date;
+                      break;
+                    case "review_content":
+                      currentValue =
+                        fieldValues[field.id] || selectedReview.content;
+                      break;
+                    case "review_rating":
+                      currentValue =
+                        fieldValues[field.id] || selectedReview.rating;
+                      break;
+                    case "review_status":
+                      currentValue =
+                        fieldValues[field.id] || selectedReview.status;
+                      break;
+                    default:
+                      currentValue = fieldValues[field.id] || field.value;
                   }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-                  rows={4}
-                />
+
+                  return (
+                    <DynamicFieldRenderer
+                      key={field.id}
+                      field={field}
+                      value={currentValue}
+                      onChange={(fieldId, value) => {
+                        console.log(fieldId, value);
+                        setFieldValues((prev) => ({
+                          ...prev,
+                          [fieldId]: value,
+                        }));
+
+                        // Update selectedReview for immediate UI feedback
+                        if (selectedReview) {
+                          const updatedReview = {...selectedReview};
+                          switch (fieldId) {
+                            case "review_author_name":
+                              updatedReview.author_name = value;
+                              break;
+                            case "review_author_email":
+                              updatedReview.author_email = value;
+                              break;
+                            case "review_date":
+                              updatedReview.date = value;
+                              break;
+                            case "review_content":
+                              updatedReview.content = value;
+                              break;
+                            case "review_rating":
+                              updatedReview.rating = value;
+                              break;
+                            case "review_status":
+                              updatedReview.status = value;
+                              break;
+                          }
+                          setSelectedReview(updatedReview);
+                        }
+                      }}
+                    />
+                  );
+                })}
+                <div className="flex justify-end space-x-3 pt-4">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setIsDialogOpen(false);
+                      setFieldValues({});
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      // Prepare data for update
+                      const updateData: any = {};
+
+                      // Map field values back to API format
+                      Object.entries(fieldValues).forEach(
+                        ([fieldId, value]) => {
+                          switch (fieldId) {
+                            case "review_author_name":
+                              updateData.author_name = value;
+                              break;
+                            case "review_author_email":
+                              updateData.author_email = value;
+                              break;
+                            case "review_date":
+                              updateData.date = value;
+                              break;
+                            case "review_content":
+                              updateData.content = value;
+                              break;
+                            case "review_rating":
+                              updateData.rating = value;
+                              break;
+                            case "review_status":
+                              updateData.status = value;
+                              break;
+                            default:
+                              // Custom fields go into meta
+                              if (!updateData.meta) updateData.meta = {};
+                              updateData.meta[fieldId] = value;
+                          }
+                        }
+                      );
+
+                      updateReviewMutation.mutate({
+                        id: selectedReview.id,
+                        data: updateData,
+                      });
+                      setIsDialogOpen(false);
+                      setFieldValues({});
+                    }}
+                    disabled={updateReviewMutation.isPending}
+                  >
+                    {updateReviewMutation.isPending
+                      ? "Saving..."
+                      : "Save Changes"}
+                  </Button>
+                </div>
               </div>
-              <div className="flex justify-end space-x-3 pt-4">
-                <Button
-                  variant="outline"
-                  onClick={() => setIsDialogOpen(false)}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={() => {
-                    updateReviewMutation.mutate({
-                      id: selectedReview.id,
-                      data: {
-                        content: selectedReview.content,
-                        status: selectedReview.status,
-                      },
-                    });
-                    setIsDialogOpen(false);
-                  }}
-                  disabled={updateReviewMutation.isPending}
-                >
-                  {updateReviewMutation.isPending
-                    ? "Saving..."
-                    : "Save Changes"}
-                </Button>
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-gray-500">
+                  No review selected or fields not loaded.
+                </p>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </div>

@@ -235,9 +235,7 @@ class RestRoutes {
 						'permission_callback' => array( $this, 'check_reviews_permissions' ),
 					),
 				)
-			);
-
-			register_rest_route(
+			);          register_rest_route(
 				$this->namespace,
 				'/reviews/(?P<id>\\d+)',
 				array(
@@ -256,6 +254,17 @@ class RestRoutes {
 						'callback'            => array( $this, 'delete_review' ),
 						'permission_callback' => array( $this, 'check_reviews_permissions' ),
 					),
+				)
+			);
+
+			// Review fields endpoint
+			register_rest_route(
+				$this->namespace,
+				'/reviews/fields',
+				array(
+					'methods'             => WP_REST_Server::READABLE,
+					'callback'            => array( $this, 'get_review_fields' ),
+					'permission_callback' => array( $this, 'check_reviews_permissions' ),
 				)
 			);
 		}
@@ -1244,5 +1253,29 @@ class RestRoutes {
 		$fields = DatabaseManager::get_all_fields();
 
 		return rest_ensure_response( $fields );
+	}
+
+	/**
+	 * Get review fields (WooCommerce integration)
+	 *
+	 * @param WP_REST_Request $request Request object
+	 * @return WP_REST_Response|WP_Error
+	 */
+	public function get_review_fields( $request ) {
+		if ( ! class_exists( 'WooCommerce' ) ) {
+			return new WP_Error(
+				'woocommerce_not_active',
+				__( 'WooCommerce is not active', 'spider-boxes' ),
+				array( 'status' => 400 )
+			);
+		}
+
+		$reviews_manager = spider_boxes()->get_container()->get( 'reviewsManager' );
+		$review_fields   = $reviews_manager->get_review_fields();
+
+		// Convert Collection to array for JSON response
+		$fields_array = $review_fields->toArray();
+
+		return rest_ensure_response( array( 'fields' => $fields_array ) );
 	}
 }

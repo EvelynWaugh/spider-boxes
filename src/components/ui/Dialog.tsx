@@ -76,10 +76,30 @@ const DialogContent = React.forwardRef<
           {...props}
         >
           <motion.div
-            initial={{opacity: 0, scale: 0.95, y: 20}}
-            animate={{opacity: 1, scale: 1, y: 0}}
-            exit={{opacity: 0, scale: 0.95, y: 20}}
+            initial={{
+              opacity: 0,
+              scale: 0.95,
+              x: "-50%",
+              y: "-50%",
+            }}
+            animate={{
+              opacity: 1,
+              scale: 1,
+              x: "-50%",
+              y: "-50%",
+            }}
+            exit={{
+              opacity: 0,
+              scale: 0.95,
+              x: "-50%",
+              y: "-50%",
+            }}
             transition={{duration: 0.2}}
+            style={{
+              position: "fixed",
+              left: "50%",
+              top: "50%",
+            }}
           >
             {children}
             <DialogPrimitive.Close className="dialog-close">
