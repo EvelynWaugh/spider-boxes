@@ -213,6 +213,8 @@ class SpiderBoxes {
 			return;
 		}
 
+		wp_enqueue_media();
+
 		$script_asset_path = SPIDER_BOXES_PLUGIN_DIR . 'assets/dist/admin.asset.php';
 		$script_asset      = file_exists( $script_asset_path ) ? require $script_asset_path : array(
 			'dependencies' => array(),

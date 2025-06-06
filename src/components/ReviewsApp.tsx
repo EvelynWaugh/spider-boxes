@@ -46,22 +46,7 @@ import {
   ChevronRightIcon,
 } from "@radix-ui/react-icons";
 import {useAPI} from "../hooks/useAPI";
-import {DynamicFieldRenderer} from "./DynamicFieldRenderer";
-
-interface DynamicField {
-  id: string;
-  type: string;
-  title: string;
-  description?: string;
-  value: any;
-  required?: boolean;
-  options?: Record<string, {label: string; value?: string}>;
-  min?: number;
-  max?: number;
-  step?: number;
-  rows?: number;
-  placeholder?: string;
-}
+import {DynamicField, DynamicFieldRenderer} from "./DynamicFieldRenderer";
 
 interface Review {
   id: number;
@@ -324,7 +309,7 @@ export const ReviewsApp: React.FC<ReviewsAppProps> = ({productId}) => {
     getFilteredRowModel: getFilteredRowModel(),
     initialState: {
       pagination: {
-        pageSize: 10,
+        pageSize: 20,
       },
     },
   });
@@ -619,7 +604,7 @@ export const ReviewsApp: React.FC<ReviewsAppProps> = ({productId}) => {
             <ChevronRightIcon className="w-4 h-4" />
           </Button>
         </div>
-      </div>{" "}
+      </div>
       {/* Edit Review Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent size="lg">
@@ -631,6 +616,7 @@ export const ReviewsApp: React.FC<ReviewsAppProps> = ({productId}) => {
               <div className="space-y-4">
                 {reviewFields.map((field) => {
                   // Map field IDs to review properties
+
                   let currentValue;
                   switch (field.id) {
                     case "review_author_name":
@@ -649,16 +635,26 @@ export const ReviewsApp: React.FC<ReviewsAppProps> = ({productId}) => {
                       currentValue =
                         fieldValues[field.id] || selectedReview.content;
                       break;
-                    case "review_rating":
-                      currentValue =
-                        fieldValues[field.id] || selectedReview.rating;
-                      break;
+
                     case "review_status":
                       currentValue =
                         fieldValues[field.id] || selectedReview.status;
                       break;
+
+                    case "rating":
+                      currentValue =
+                        fieldValues[field.id] || selectedReview.rating;
+                      break;
                     default:
-                      currentValue = fieldValues[field.id] || field.value;
+                      if (field.meta_field) {
+                        // For custom fields, use meta
+                        currentValue =
+                          fieldValues[field.id] ||
+                          selectedReview.meta?.[field.id] ||
+                          field.value;
+                      } else {
+                        currentValue = fieldValues[field.id] || field.value;
+                      }
                   }
 
                   return (
@@ -666,8 +662,8 @@ export const ReviewsApp: React.FC<ReviewsAppProps> = ({productId}) => {
                       key={field.id}
                       field={field}
                       value={currentValue}
-                      onChange={(fieldId, value) => {
-                        console.log(fieldId, value);
+                      onChange={(fieldId, isMeta, value) => {
+                        console.log(fieldId, isMeta, value);
                         setFieldValues((prev) => ({
                           ...prev,
                           [fieldId]: value,
@@ -689,12 +685,19 @@ export const ReviewsApp: React.FC<ReviewsAppProps> = ({productId}) => {
                             case "review_content":
                               updatedReview.content = value;
                               break;
-                            case "review_rating":
-                              updatedReview.rating = value;
-                              break;
                             case "review_status":
                               updatedReview.status = value;
                               break;
+                            case "rating":
+                              updatedReview.rating = value;
+                              break;
+                          }
+
+                          if (isMeta) {
+                            if (!updatedReview.meta) {
+                              updatedReview.meta = {};
+                            }
+                            updatedReview.meta[fieldId] = value;
                           }
                           setSelectedReview(updatedReview);
                         }
@@ -733,15 +736,17 @@ export const ReviewsApp: React.FC<ReviewsAppProps> = ({productId}) => {
                             case "review_content":
                               updateData.content = value;
                               break;
-                            case "review_rating":
-                              updateData.rating = value;
-                              break;
+
                             case "review_status":
                               updateData.status = value;
+                              break;
+                            case "rating":
+                              updateData.rating = value;
                               break;
                             default:
                               // Custom fields go into meta
                               if (!updateData.meta) updateData.meta = {};
+
                               updateData.meta[fieldId] = value;
                           }
                         }

@@ -74,6 +74,13 @@ const DialogContent = React.forwardRef<
           className={cn("dialog-content", sizeClasses[size], className)}
           asChild
           {...props}
+          onPointerDownOutside={(event) => {
+            // Check if the WordPress media library is open.
+            // If it is, prevent the Dialog from closing when we click on the media library.
+            if (document.body.classList.contains("wp-media-library-open")) {
+              event.preventDefault();
+            }
+          }}
         >
           <motion.div
             initial={{

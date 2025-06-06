@@ -167,7 +167,9 @@ class ReviewsManager {
 
 		foreach ( $comment_meta as $key => $values ) {
 			if ( ! in_array( $key, $default_keys ) ) {
-				$meta[ $key ] = is_array( $values ) && count( $values ) === 1 ? $values[0] : $values;
+				$value_to_serialize = is_array( $values ) && count( $values ) > 0 ? $values[0] : $values;
+				$meta[ $key ]       = apply_filters( 'spider_boxes_review_meta_' . $key, maybe_unserialize( $value_to_serialize ), $comment_id );
+
 			}
 		}
 
@@ -510,6 +512,7 @@ class ReviewsManager {
 				'description' => esc_html__( 'The name of the review author', 'spider-boxes' ),
 				'value'       => '',
 				'required'    => true,
+				'meta_field'  => false,
 				'context'     => 'review',
 			),
 			'review_author_email' => array(
@@ -520,6 +523,7 @@ class ReviewsManager {
 				'description' => esc_html__( 'The email address of the review author', 'spider-boxes' ),
 				'value'       => '',
 				'required'    => true,
+				'meta_field'  => false,
 				'context'     => 'review',
 			),
 			'review_date'         => array(
@@ -529,6 +533,7 @@ class ReviewsManager {
 				'title'       => esc_html__( 'Review Date', 'spider-boxes' ),
 				'description' => esc_html__( 'The date when the review was created', 'spider-boxes' ),
 				'value'       => '',
+				'meta_field'  => false,
 				'context'     => 'review',
 			),
 			'review_content'      => array(
@@ -540,20 +545,10 @@ class ReviewsManager {
 				'value'       => '',
 				'rows'        => 4,
 				'required'    => true,
+				'meta_field'  => false,
 				'context'     => 'review',
 			),
-			'review_rating'       => array(
-				'id'          => 'review_rating',
-				'type'        => 'range',
-				'parent'      => 'review_edit_section',
-				'title'       => esc_html__( 'Rating', 'spider-boxes' ),
-				'description' => esc_html__( 'The star rating for this review', 'spider-boxes' ),
-				'value'       => 5,
-				'min'         => 1,
-				'max'         => 5,
-				'step'        => 1,
-				'context'     => 'review',
-			),
+
 			'review_status'       => array(
 				'id'          => 'review_status',
 				'type'        => 'select',
@@ -575,8 +570,49 @@ class ReviewsManager {
 						'label' => esc_html__( 'Trash', 'spider-boxes' ),
 					),
 				),
+				'meta_field'  => false,
 				'context'     => 'review',
 			),
+
+			'rating'              => array(
+				'id'          => 'rating',
+				'type'        => 'range',
+				'parent'      => 'review_edit_section',
+				'title'       => esc_html__( 'Rating', 'spider-boxes' ),
+				'description' => esc_html__( 'The star rating for this review', 'spider-boxes' ),
+				'value'       => 5,
+				'min'         => 1,
+				'max'         => 5,
+				'step'        => 1,
+				'meta_field'  => false, // Woocommerce required field.
+				'context'     => 'review',
+			),
+			'review_images'       => array(
+				'id'          => 'review_images',
+				'type'        => 'media',
+				'parent'      => 'review_edit_section',
+				'title'       => esc_html__( 'Review Images', 'spider-boxes' ),
+				'description' => esc_html__( 'Upload images related to this review', 'spider-boxes' ),
+				'value'       => array(),
+				'multiple'    => true,
+				'media_type'  => 'image',
+				'meta_field'  => true,
+				'context'     => 'review',
+			),
+
+			'seresto_video'       => array(
+				'id'          => 'seresto_video',
+				'type'        => 'media',
+				'parent'      => 'review_edit_section',
+				'title'       => esc_html__( 'Review Videos', 'spider-boxes' ),
+				'description' => esc_html__( 'Upload videos related to this review', 'spider-boxes' ),
+				'value'       => array(),
+				'multiple'    => true,
+				'media_type'  => 'video',
+				'meta_field'  => true,
+				'context'     => 'review',
+			),
+
 		);
 
 		// Register each field
