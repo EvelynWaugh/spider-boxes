@@ -1,5 +1,6 @@
-import React, {useState, useMemo, useEffect} from "react";
+import React, {useState, useMemo, useEffect, useCallback} from "react";
 import {useQuery, useMutation, useQueryClient} from "@tanstack/react-query";
+import {useForm} from "@tanstack/react-form";
 import {
   createColumnHelper,
   getCoreRowModel,
@@ -169,15 +170,201 @@ export const ReviewsApp: React.FC<ReviewsAppProps> = ({productId}) => {
   );
 
   // Fetch review fields
-  const {data: fieldsData} = useQuery({
+  const {data: fieldsData, isLoading: fieldsLoading} = useQuery({
     queryKey: ["review-fields"],
     queryFn: getReviewFields,
     staleTime: 10 * 60 * 1000, // 10 minutes
   });
 
-  const reviewFields: DynamicField[] = fieldsData?.fields
-    ? Object.values(fieldsData.fields)
-    : []; // Fetch reviews with server-side pagination
+  const reviewFields: DynamicField[] = useMemo(() => {
+    // Return empty array if data is not ready
+    if (!fieldsData?.fields || typeof fieldsData.fields !== "object") {
+      return [];
+    }
+
+    try {
+      const fields = Object.values(fieldsData.fields);
+      // Ensure we have an array and all elements are valid
+      return Array.isArray(fields)
+        ? fields.filter((field) => field && typeof field === "object")
+        : [];
+    } catch (error) {
+      console.error("Error processing review fields:", error);
+      return [];
+    }
+  }, [fieldsData?.fields]);
+
+  const form = useForm({
+    defaultValues: {} as Record<string, any>,
+    onSubmit: async ({value}) => {
+      console.log("Form submitted:", value);
+      handleSaveChanges();
+    },
+    validators: {
+      onSubmit: ({value}) => {
+        const errors: Record<string, string> = {};
+
+        // Validate required fields
+        reviewFields.forEach((field) => {
+          if (field.required && (!value[field.id] || value[field.id] === "")) {
+            errors[field.id] = `${field.title} is required`;
+          }
+        });
+
+        return Object.keys(errors).length > 0 ? errors : undefined;
+      },
+    },
+  });
+
+  // Memoize the field initialization function
+  const initializeFormFields = useCallback(
+    (review: Review, fields: DynamicField[]) => {
+      if (!Array.isArray(fields) || fields.length === 0) {
+        return {};
+      }
+      const initialValues: Record<string, any> = {};
+
+      fields.forEach((field) => {
+        // Ensure field is valid
+        if (!field || !field.id) return;
+
+        let currentValue;
+        switch (field.id) {
+          case "author_name":
+            currentValue = review.author_name;
+            break;
+          case "author_email":
+            currentValue = review.author_email;
+            break;
+          case "date":
+            currentValue = review.date;
+            break;
+          case "content":
+            currentValue = review.content;
+            break;
+          case "status":
+            currentValue = review.status;
+            break;
+          case "rating":
+            currentValue = review.rating;
+            break;
+          default:
+            if (field.meta_field) {
+              currentValue = review.meta?.[field.id] || field.value;
+            } else {
+              currentValue = field.value;
+            }
+        }
+        initialValues[field.id] = currentValue;
+      });
+
+      return initialValues;
+    },
+    []
+  );
+
+  // Memoize the field change handler
+  const handleFieldChange = useCallback(
+    (
+      fieldId: string,
+      isMeta: boolean | undefined,
+      value: any,
+      currentValue: any
+    ) => {
+      console.log(fieldId, isMeta, value, currentValue);
+      form.setFieldValue(fieldId, value);
+
+      setFieldValues((prev) => ({
+        ...prev,
+        [fieldId]: value,
+      }));
+
+      // Update selectedReview for immediate UI feedback
+      setSelectedReview((prevReview) => {
+        if (!prevReview) return prevReview;
+
+        const updatedReview = {...prevReview};
+        switch (fieldId) {
+          case "author_name":
+            updatedReview.author_name = value;
+            break;
+          case "author_email":
+            updatedReview.author_email = value;
+            break;
+          case "date":
+            updatedReview.date = value;
+            break;
+          case "content":
+            updatedReview.content = value;
+            break;
+          case "status":
+            updatedReview.status = value;
+            break;
+          case "rating":
+            updatedReview.rating = value;
+            break;
+        }
+
+        if (isMeta) {
+          if (!updatedReview.meta) {
+            updatedReview.meta = {};
+          }
+          updatedReview.meta[fieldId] = value;
+        }
+
+        return updatedReview;
+      });
+    },
+    [form]
+  );
+
+  // Fix the useEffect with proper dependencies
+  useEffect(() => {
+    if (
+      !selectedReview ||
+      !isDialogOpen ||
+      fieldsLoading ||
+      !reviewFields ||
+      !Array.isArray(reviewFields) ||
+      reviewFields.length === 0
+    ) {
+      return;
+    }
+    try {
+      const initialValues = initializeFormFields(selectedReview, reviewFields);
+
+      // Only proceed if we have valid initial values
+      if (initialValues && typeof initialValues === "object") {
+        // Set form values
+        Object.entries(initialValues).forEach(([fieldId, value]) => {
+          if (fieldId && form.setFieldValue) {
+            form.setFieldValue(fieldId, value);
+          }
+        });
+
+        // Set fieldValues state
+        setFieldValues(initialValues);
+      }
+    } catch (error) {
+      console.error("Error initializing form fields:", error);
+    }
+  }, [
+    selectedReview?.id,
+    isDialogOpen,
+    fieldsLoading,
+    reviewFields?.length, // Safe access with optional chaining
+    initializeFormFields,
+    form,
+  ]);
+
+  // Memoize the dialog close handler
+  const handleCloseDialog = useCallback(() => {
+    setIsDialogOpen(false);
+    setFieldValues({});
+    setSelectedReview(null);
+  }, []);
+
+  // Fetch reviews with server-side pagination
   const {
     data: reviewsData,
     isLoading,
@@ -245,6 +432,49 @@ export const ReviewsApp: React.FC<ReviewsAppProps> = ({productId}) => {
       console.error("Failed to update review:", error);
     },
   });
+
+  // Memoize the save handler
+  const handleSaveChanges = useCallback(() => {
+    if (!selectedReview) return;
+
+    try {
+      const updateData: any = {};
+
+      // Map field values back to API format
+      Object.entries(fieldValues).forEach(([fieldId, value]) => {
+        switch (fieldId) {
+          case "author_name":
+            updateData.author_name = value;
+            break;
+          case "author_email":
+            updateData.author_email = value;
+            break;
+          case "date":
+            updateData.date = value;
+            break;
+          case "content":
+            updateData.content = value;
+            break;
+          case "status":
+            updateData.status = value;
+            break;
+          case "rating":
+            updateData.rating = value;
+            break;
+          default:
+            if (!updateData.meta) updateData.meta = {};
+            updateData.meta[fieldId] = value;
+        }
+      });
+
+      updateReviewMutation.mutate({
+        id: selectedReview.id,
+        data: updateData,
+      });
+    } catch (error) {
+      console.error("Error saving changes:", error);
+    }
+  }, [selectedReview, fieldValues, updateReviewMutation]);
 
   // Delete review mutation
   const deleteReviewMutation = useMutation({
@@ -417,7 +647,7 @@ export const ReviewsApp: React.FC<ReviewsAppProps> = ({productId}) => {
   if (error) {
     return (
       <div className="text-red-600 p-4">
-        Error loading reviews:{" "}
+        Error loading reviews:
         {error instanceof Error ? error.message : "Unknown error"}
       </div>
     );
@@ -425,7 +655,6 @@ export const ReviewsApp: React.FC<ReviewsAppProps> = ({productId}) => {
 
   return (
     <div className="reviews-app">
-      {" "}
       <div className="reviews-header">
         <h2 className="text-2xl font-bold mb-4">
           Product Reviews
@@ -434,7 +663,7 @@ export const ReviewsApp: React.FC<ReviewsAppProps> = ({productId}) => {
               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
               <span className="ml-1 text-sm text-gray-500">Loading...</span>
             </span>
-          )}{" "}
+          )}
         </h2>
 
         {/* Add New Review Button */}
@@ -505,7 +734,7 @@ export const ReviewsApp: React.FC<ReviewsAppProps> = ({productId}) => {
             </select>
           </div>
         </div>
-      </div>{" "}
+      </div>
       {/* Reviews Table */}
       {reviews.length === 0 ? (
         <div className="text-center py-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
@@ -673,23 +902,22 @@ export const ReviewsApp: React.FC<ReviewsAppProps> = ({productId}) => {
             </div>
           </div>
         </DndContext>
-      )}{" "}
+      )}
       {/* Pagination */}
       <div className="flex items-center justify-between py-4">
         <div className="text-sm text-gray-700">
-          Showing{" "}
+          Showing
           {totalItems === 0
             ? 0
-            : pagination.pageIndex * pagination.pageSize + 1}{" "}
-          to{" "}
+            : pagination.pageIndex * pagination.pageSize + 1}
+          to
           {Math.min(
             (pagination.pageIndex + 1) * pagination.pageSize,
             totalItems
-          )}{" "}
+          )}
           of {totalItems} results
         </div>
         <div className="flex items-center space-x-2">
-          {" "}
           <Button
             variant="outline"
             size="sm"
@@ -722,165 +950,116 @@ export const ReviewsApp: React.FC<ReviewsAppProps> = ({productId}) => {
           <div>
             {selectedReview && reviewFields.length > 0 ? (
               <div className="space-y-4">
-                {reviewFields.map((field) => {
-                  // Map field IDs to review properties
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    form.handleSubmit();
+                  }}
+                >
+                  {reviewFields.map((field) => {
+                    // Map field IDs to review properties
+                    const formValue = form.getFieldValue(field.id);
+                    let currentValue =
+                      formValue !== undefined
+                        ? formValue
+                        : fieldValues[field.id];
 
-                  let currentValue;
-                  switch (field.id) {
-                    case "review_author_name":
-                      currentValue =
-                        fieldValues[field.id] || selectedReview.author_name;
-                      break;
-                    case "review_author_email":
-                      currentValue =
-                        fieldValues[field.id] || selectedReview.author_email;
-                      break;
-                    case "review_date":
-                      currentValue =
-                        fieldValues[field.id] || selectedReview.date;
-                      break;
-                    case "review_content":
-                      currentValue =
-                        fieldValues[field.id] || selectedReview.content;
-                      break;
+                    // If still no value, map from selectedReview
+                    if (currentValue === undefined && selectedReview) {
+                      switch (field.id) {
+                        case "author_name":
+                          currentValue =
+                            fieldValues[field.id] || selectedReview.author_name;
+                          break;
+                        case "author_email":
+                          currentValue =
+                            fieldValues[field.id] ||
+                            selectedReview.author_email;
+                          break;
+                        case "date":
+                          currentValue =
+                            fieldValues[field.id] || selectedReview.date;
+                          break;
+                        case "content":
+                          currentValue =
+                            fieldValues[field.id] || selectedReview.content;
+                          break;
 
-                    case "review_status":
-                      currentValue =
-                        fieldValues[field.id] || selectedReview.status;
-                      break;
+                        case "status":
+                          currentValue =
+                            fieldValues[field.id] || selectedReview.status;
+                          break;
 
-                    case "rating":
-                      currentValue =
-                        fieldValues[field.id] || selectedReview.rating;
-                      break;
-                    default:
-                      if (field.meta_field) {
-                        // For custom fields, use meta
-                        currentValue =
-                          fieldValues[field.id] ||
-                          selectedReview.meta?.[field.id] ||
-                          field.value;
-                      } else {
-                        currentValue = fieldValues[field.id] || field.value;
+                        case "rating":
+                          currentValue =
+                            fieldValues[field.id] || selectedReview.rating;
+                          break;
+                        default:
+                          if (field.meta_field) {
+                            // For custom fields, use meta
+                            currentValue =
+                              fieldValues[field.id] ||
+                              selectedReview.meta?.[field.id] ||
+                              field.value;
+                          } else {
+                            currentValue = fieldValues[field.id] || field.value;
+                          }
                       }
-                  }
+                    }
 
-                  return (
-                    <DynamicFieldRenderer
-                      key={field.id}
-                      field={field}
-                      value={currentValue}
-                      onChange={(fieldId, isMeta, value) => {
-                        console.log(fieldId, isMeta, value);
-                        setFieldValues((prev) => ({
-                          ...prev,
-                          [fieldId]: value,
-                        }));
+                    return (
+                      <DynamicFieldRenderer
+                        key={field.id}
+                        field={field}
+                        value={currentValue}
+                        onChange={handleFieldChange}
+                        formApi={form}
+                        validationRules={{
+                          required: field.required,
+                        }}
+                      />
+                    );
+                  })}
 
-                        // Update selectedReview for immediate UI feedback
-                        if (selectedReview) {
-                          const updatedReview = {...selectedReview};
-                          switch (fieldId) {
-                            case "review_author_name":
-                              updatedReview.author_name = value;
-                              break;
-                            case "review_author_email":
-                              updatedReview.author_email = value;
-                              break;
-                            case "review_date":
-                              updatedReview.date = value;
-                              break;
-                            case "review_content":
-                              updatedReview.content = value;
-                              break;
-                            case "review_status":
-                              updatedReview.status = value;
-                              break;
-                            case "rating":
-                              updatedReview.rating = value;
-                              break;
+                  <div className="flex justify-end space-x-3 pt-4">
+                    <Button variant="outline" onClick={handleCloseDialog}>
+                      Cancel
+                    </Button>
+                    <form.Subscribe
+                      selector={(state) => [
+                        state.canSubmit,
+                        state.isSubmitting,
+                      ]}
+                      children={([canSubmit, isSubmitting]) => (
+                        <button
+                          type="submit"
+                          onClick={handleSaveChanges}
+                          disabled={
+                            !canSubmit ||
+                            isSubmitting ||
+                            updateReviewMutation.isPending
                           }
-
-                          if (isMeta) {
-                            if (!updatedReview.meta) {
-                              updatedReview.meta = {};
-                            }
-                            updatedReview.meta[fieldId] = value;
-                          }
-                          setSelectedReview(updatedReview);
-                        }
-                      }}
+                        >
+                          {updateReviewMutation.isPending
+                            ? "Saving..."
+                            : "Save Changes"}
+                        </button>
+                      )}
                     />
-                  );
-                })}
-                <div className="flex justify-end space-x-3 pt-4">
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setIsDialogOpen(false);
-                      setFieldValues({});
-                    }}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    onClick={() => {
-                      // Prepare data for update
-                      const updateData: any = {};
-
-                      // Map field values back to API format
-                      Object.entries(fieldValues).forEach(
-                        ([fieldId, value]) => {
-                          switch (fieldId) {
-                            case "review_author_name":
-                              updateData.author_name = value;
-                              break;
-                            case "review_author_email":
-                              updateData.author_email = value;
-                              break;
-                            case "review_date":
-                              updateData.date = value;
-                              break;
-                            case "review_content":
-                              updateData.content = value;
-                              break;
-
-                            case "review_status":
-                              updateData.status = value;
-                              break;
-                            case "rating":
-                              updateData.rating = value;
-                              break;
-                            default:
-                              // Custom fields go into meta
-                              if (!updateData.meta) updateData.meta = {};
-
-                              updateData.meta[fieldId] = value;
-                          }
-                        }
-                      );
-
-                      updateReviewMutation.mutate({
-                        id: selectedReview.id,
-                        data: updateData,
-                      });
-                    }}
-                    disabled={updateReviewMutation.isPending}
-                  >
-                    {updateReviewMutation.isPending
-                      ? "Saving..."
-                      : "Save Changes"}
-                  </Button>
-                </div>
+                  </div>
+                </form>
               </div>
             ) : (
               <div className="text-center py-8">
                 <p className="text-gray-500">
-                  No review selected or fields not loaded.
+                  {reviewFields.length === 0
+                    ? "Loading fields..."
+                    : "No review selected or fields not loaded."}
                 </p>
               </div>
             )}
-          </div>{" "}
+          </div>
         </DialogContent>
       </Dialog>
       {/* Add Review Dialog */}

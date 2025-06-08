@@ -1,6 +1,5 @@
-import React, {useEffect} from "react";
+import React, {useEffect, useState} from "react";
 import {useMutation, useQuery, useQueryClient} from "@tanstack/react-query";
-import {useForm} from "@tanstack/react-form";
 import {
   Dialog,
   DialogContent,
@@ -9,14 +8,9 @@ import {
 } from "@/components/ui/Dialog";
 import {Button} from "@/components/ui/Button";
 import * as Select from "@radix-ui/react-select";
-import {
-  StarIcon,
-  StarFilledIcon,
-  PlusIcon,
-  ChevronDownIcon,
-  CheckIcon,
-} from "@radix-ui/react-icons";
+import {PlusIcon, ChevronDownIcon, CheckIcon} from "@radix-ui/react-icons";
 import {useAPI} from "../hooks/useAPI";
+import {DynamicField, DynamicFieldRenderer} from "./DynamicFieldRenderer";
 
 interface Product {
   id: number;
@@ -42,6 +36,7 @@ interface ReviewFormData {
   rating: number;
   status: "approve" | "hold" | "spam" | "trash";
   verified?: boolean;
+  meta: Record<string, any>;
 }
 
 export const AddReviewDialog: React.FC<AddReviewDialogProps> = ({
@@ -50,7 +45,25 @@ export const AddReviewDialog: React.FC<AddReviewDialogProps> = ({
   productId,
 }) => {
   const queryClient = useQueryClient();
-  const {get, post} = useAPI();
+  const {get, post, getReviewFields} = useAPI();
+
+  // State for form values
+  const [formValues, setFormValues] = useState<Record<string, any>>({});
+  const [selectedProductId, setSelectedProductId] = useState<number>(
+    productId || 0
+  );
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Fetch review fields configuration
+  const {data: fieldsData, isLoading: isLoadingFields} = useQuery({
+    queryKey: ["review-fields"],
+    queryFn: getReviewFields,
+    enabled: isOpen,
+  });
+
+  const reviewFields: DynamicField[] = fieldsData?.fields
+    ? Object.values(fieldsData.fields)
+    : []; // Fetch reviews with server-side pagination
 
   // Fetch products for selection
   const {data: productsData, isLoading: isLoadingProducts} = useQuery({
@@ -67,64 +80,121 @@ export const AddReviewDialog: React.FC<AddReviewDialogProps> = ({
     onSuccess: () => {
       queryClient.invalidateQueries({queryKey: ["reviews"]});
       onOpenChange(false);
+      resetForm();
     },
     onError: (error: any) => {
       console.error("Failed to create review:", error);
-    },
-  });
-  // TanStack Form
-  const form = useForm({
-    defaultValues: {
-      product_id: productId || 0,
-      author_name: "",
-      author_email: "",
-      author_url: "",
-      content: "",
-      rating: 5,
-      status: "approve" as ReviewFormData["status"],
-      verified: false,
-    },
-    onSubmit: async ({value}) => {
-      try {
-        await createReviewMutation.mutateAsync(value);
-      } catch (error) {
-        console.error("Form submission error:", error);
-      }
     },
   });
 
   // Reset form when dialog opens
   useEffect(() => {
     if (isOpen) {
-      form.reset();
+      resetForm();
+      setSelectedProductId(productId || 0);
     }
-  }, [isOpen, form]);
+  }, [isOpen, productId]);
 
-  const renderStarRating = (
-    value: number,
-    onChange: (rating: number) => void
+  const resetForm = () => {
+    setFormValues({
+      author_name: "",
+      author_email: "",
+      author_url: "",
+      content: "",
+      rating: 5,
+      status: "approve",
+      verified: false,
+      meta: {},
+    });
+    setErrors({});
+  };
+  const handleFieldChange = (
+    fieldId: string,
+    isMeta: boolean | undefined,
+    value: any
   ) => {
-    return (
-      <div className="flex items-center space-x-1">
-        {[1, 2, 3, 4, 5].map((star) => (
-          <button
-            key={star}
-            type="button"
-            onClick={() => onChange(star)}
-            className="text-yellow-400 hover:text-yellow-500 transition-colors"
-          >
-            {star <= value ? (
-              <StarFilledIcon className="w-6 h-6" />
-            ) : (
-              <StarIcon className="w-6 h-6" />
-            )}
-          </button>
-        ))}
-        <span className="ml-2 text-sm text-gray-600">
-          {value} star{value !== 1 ? "s" : ""}
-        </span>
-      </div>
-    );
+    setFormValues((prev) => ({
+      ...prev,
+      [fieldId]: value,
+    }));
+
+    // Clear error when field is changed
+    if (errors[fieldId]) {
+      setErrors((prev) => ({
+        ...prev,
+        [fieldId]: "",
+      }));
+    }
+  };
+
+  const validateForm = (): boolean => {
+    const newErrors: Record<string, string> = {};
+
+    // Validate product selection (if not pre-selected)
+    if (!productId && !selectedProductId) {
+      newErrors.product_id = "Product is required";
+    }
+
+    // Validate required fields
+    if (!formValues.author_name?.trim()) {
+      newErrors.author_name = "Reviewer name is required";
+    }
+
+    if (!formValues.author_email?.trim()) {
+      newErrors.author_email = "Email is required";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formValues.author_email)) {
+      newErrors.author_email = "Invalid email format";
+    }
+
+    if (!formValues.content?.trim()) {
+      newErrors.content = "Review content is required";
+    }
+
+    if (formValues.rating < 1 || formValues.rating > 5) {
+      newErrors.rating = "Rating must be between 1 and 5";
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!validateForm()) {
+      return;
+    }
+
+    try {
+      const submitData: ReviewFormData = {
+        product_id: productId || selectedProductId,
+        author_name: formValues.author_name,
+        author_email: formValues.author_email,
+        author_url: formValues.author_url || "",
+        content: formValues.content,
+        rating: formValues.rating,
+        status: formValues.status || "approve",
+        verified: formValues.verified || false,
+        meta: {},
+      };
+
+      console.log(fieldsData.meta);
+
+      //get meta fields from reviewFields
+      reviewFields
+        .filter((field) => field.meta_field)
+        .forEach((field) => {
+          if (formValues[field.id] !== undefined) {
+            submitData.meta[field.id] = formValues[field.id];
+          }
+        });
+
+      console.log(submitData);
+
+      await createReviewMutation.mutateAsync(submitData);
+    } catch (error) {
+      console.error("Form submission error:", error);
+    }
   };
 
   return (
@@ -137,346 +207,180 @@ export const AddReviewDialog: React.FC<AddReviewDialogProps> = ({
           </DialogTitle>
         </DialogHeader>
 
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            form.handleSubmit();
-          }}
-          className="space-y-6"
-        >
-          {!productId && (
-            <form.Field
-              name="product_id"
-              validators={{
-                onChange: ({value}) =>
-                  !value || value === 0 ? "Product is required" : undefined,
-              }}
-            >
-              {(field) => (
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-700">
-                    Product *
-                  </label>
-                  <Select.Root
-                    value={field.state.value?.toString()}
-                    onValueChange={(value) =>
-                      field.handleChange(parseInt(value))
-                    }
-                  >
-                    <Select.Trigger className="w-full flex items-center justify-between px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-                      <Select.Value placeholder="Select a product..." />
-                      <Select.Icon>
-                        <ChevronDownIcon />
-                      </Select.Icon>
-                    </Select.Trigger>
-                    <Select.Portal>
-                      <Select.Content className="bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-y-auto z-50">
-                        <Select.Viewport>
-                          {isLoadingProducts ? (
-                            <div className="p-4 text-center text-gray-500">
-                              Loading products...
-                            </div>
-                          ) : (
-                            products.map((product) => (
-                              <Select.Item
-                                key={product.id}
-                                value={product.id.toString()}
-                                className="flex items-center space-x-3 px-3 py-2 hover:bg-gray-50 cursor-pointer data-[highlighted]:bg-blue-50 data-[highlighted]:outline-none"
-                              >
-                                <Select.ItemText className="flex items-center space-x-3">
-                                  {product.image && (
-                                    <img
-                                      src={product.image[0]}
-                                      alt={product.name}
-                                      className="w-8 h-8 object-cover rounded"
-                                    />
-                                  )}
-                                  <div>
-                                    <div className="font-medium">
-                                      {product.name}
-                                    </div>
-                                    <div className="text-sm text-gray-500">
-                                      ${product.price}
-                                    </div>
-                                  </div>
-                                </Select.ItemText>
-                                <Select.ItemIndicator>
-                                  <CheckIcon />
-                                </Select.ItemIndicator>
-                              </Select.Item>
-                            ))
-                          )}
-                        </Select.Viewport>
-                      </Select.Content>
-                    </Select.Portal>
-                  </Select.Root>
-                  {field.state.meta.errors && (
-                    <p className="text-sm text-red-600">
-                      {field.state.meta.errors[0]}
-                    </p>
-                  )}
-                </div>
-              )}
-            </form.Field>
-          )}
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <form.Field
-              name="author_name"
-              validators={{
-                onChange: ({value}) =>
-                  !value?.trim() ? "Reviewer name is required" : undefined,
-              }}
-            >
-              {(field) => (
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-700">
-                    Reviewer Name *
-                  </label>
-                  <input
-                    type="text"
-                    value={field.state.value}
-                    onChange={(e) => field.handleChange(e.target.value)}
-                    onBlur={field.handleBlur}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Enter reviewer name"
-                  />
-                  {field.state.meta.errors && (
-                    <p className="text-sm text-red-600">
-                      {field.state.meta.errors[0]}
-                    </p>
-                  )}
-                </div>
-              )}
-            </form.Field>
-
-            <form.Field
-              name="author_email"
-              validators={{
-                onChange: ({value}) => {
-                  if (!value?.trim()) return "Email is required";
-                  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
-                    return "Invalid email format";
-                  }
-                  return undefined;
-                },
-              }}
-            >
-              {(field) => (
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-700">
-                    Email *
-                  </label>
-                  <input
-                    type="email"
-                    value={field.state.value}
-                    onChange={(e) => field.handleChange(e.target.value)}
-                    onBlur={field.handleBlur}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Enter email address"
-                  />
-                  {field.state.meta.errors && (
-                    <p className="text-sm text-red-600">
-                      {field.state.meta.errors[0]}
-                    </p>
-                  )}
-                </div>
-              )}
-            </form.Field>
+        {isLoadingFields ? (
+          <div className="p-8 text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+            <p className="mt-2 text-gray-600">Loading form...</p>
           </div>
-
-          <form.Field name="author_url">
-            {(field) => (
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Product Selection (if not pre-selected) */}
+            {!productId && (
               <div className="space-y-2">
                 <label className="block text-sm font-medium text-gray-700">
-                  Website URL (Optional)
+                  Product *
                 </label>
-                <input
-                  type="url"
-                  value={field.state.value}
-                  onChange={(e) => field.handleChange(e.target.value)}
-                  onBlur={field.handleBlur}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="https://example.com"
-                />
-              </div>
-            )}
-          </form.Field>
-
-          <form.Field
-            name="rating"
-            validators={{
-              onChange: ({value}) =>
-                value < 1 || value > 5
-                  ? "Rating must be between 1 and 5"
-                  : undefined,
-            }}
-          >
-            {(field) => (
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700">
-                  Rating *
-                </label>
-                {renderStarRating(field.state.value, field.handleChange)}
-                {field.state.meta.errors && (
-                  <p className="text-sm text-red-600">
-                    {field.state.meta.errors[0]}
-                  </p>
-                )}
-              </div>
-            )}
-          </form.Field>
-
-          <form.Field
-            name="content"
-            validators={{
-              onChange: ({value}) =>
-                !value?.trim() ? "Review content is required" : undefined,
-            }}
-          >
-            {(field) => (
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700">
-                  Review Content *
-                </label>
-                <textarea
-                  value={field.state.value}
-                  onChange={(e) => field.handleChange(e.target.value)}
-                  onBlur={field.handleBlur}
-                  rows={4}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Write the review content..."
-                />
-                {field.state.meta.errors && (
-                  <p className="text-sm text-red-600">
-                    {field.state.meta.errors[0]}
-                  </p>
-                )}
-              </div>
-            )}
-          </form.Field>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {" "}
-            <form.Field name="status">
-              {(field) => (
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-700">
-                    Status
-                  </label>
-                  <Select.Root
-                    value={field.state.value}
-                    onValueChange={(value) =>
-                      field.handleChange(value as ReviewFormData["status"])
-                    }
-                  >
-                    <Select.Trigger className="w-full flex items-center justify-between px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-                      <Select.Value />
-                      <Select.Icon>
-                        <ChevronDownIcon />
-                      </Select.Icon>
-                    </Select.Trigger>
-                    <Select.Portal>
-                      <Select.Content className="bg-white border border-gray-200 rounded-md shadow-lg z-50">
-                        <Select.Viewport>
-                          <Select.Item
-                            value="approve"
-                            className="px-3 py-2 hover:bg-gray-50 cursor-pointer data-[highlighted]:bg-blue-50 data-[highlighted]:outline-none"
-                          >
-                            <Select.ItemText>Approved</Select.ItemText>
-                            <Select.ItemIndicator>
-                              <CheckIcon />
-                            </Select.ItemIndicator>
-                          </Select.Item>
-                          <Select.Item
-                            value="hold"
-                            className="px-3 py-2 hover:bg-gray-50 cursor-pointer data-[highlighted]:bg-blue-50 data-[highlighted]:outline-none"
-                          >
-                            <Select.ItemText>Hold</Select.ItemText>
-                            <Select.ItemIndicator>
-                              <CheckIcon />
-                            </Select.ItemIndicator>
-                          </Select.Item>
-                          <Select.Item
-                            value="spam"
-                            className="px-3 py-2 hover:bg-gray-50 cursor-pointer data-[highlighted]:bg-blue-50 data-[highlighted]:outline-none"
-                          >
-                            <Select.ItemText>Spam</Select.ItemText>
-                            <Select.ItemIndicator>
-                              <CheckIcon />
-                            </Select.ItemIndicator>
-                          </Select.Item>
-                          <Select.Item
-                            value="trash"
-                            className="px-3 py-2 hover:bg-gray-50 cursor-pointer data-[highlighted]:bg-blue-50 data-[highlighted]:outline-none"
-                          >
-                            <Select.ItemText>Trash</Select.ItemText>
-                            <Select.ItemIndicator>
-                              <CheckIcon />
-                            </Select.ItemIndicator>
-                          </Select.Item>
-                        </Select.Viewport>
-                      </Select.Content>
-                    </Select.Portal>
-                  </Select.Root>
-                </div>
-              )}
-            </form.Field>
-            <form.Field name="verified">
-              {(field) => (
-                <div className="flex items-center space-x-2 pt-6">
-                  <input
-                    type="checkbox"
-                    id="verified"
-                    checked={field.state.value}
-                    onChange={(e) => field.handleChange(e.target.checked)}
-                    className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
-                  />
-                  <label htmlFor="verified" className="text-sm text-gray-700">
-                    Verified purchase
-                  </label>
-                </div>
-              )}
-            </form.Field>
-          </div>
-
-          <div className="flex justify-end space-x-3 pt-4 border-t">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={createReviewMutation.isPending}
-            >
-              Cancel
-            </Button>
-            <form.Subscribe
-              selector={(state) => [state.canSubmit, state.isSubmitting]}
-            >
-              {([canSubmit, isSubmitting]) => (
-                <Button
-                  type="submit"
-                  disabled={
-                    !canSubmit || isSubmitting || createReviewMutation.isPending
+                <Select.Root
+                  value={selectedProductId?.toString() || ""}
+                  onValueChange={(value) =>
+                    setSelectedProductId(parseInt(value))
                   }
-                  className="flex items-center space-x-2"
                 >
-                  {isSubmitting || createReviewMutation.isPending ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                      <span>Creating...</span>
-                    </>
-                  ) : (
-                    <>
-                      <PlusIcon className="w-4 h-4" />
-                      <span>Create Review</span>
-                    </>
-                  )}
-                </Button>
-              )}
-            </form.Subscribe>
-          </div>
-        </form>
+                  <Select.Trigger className="w-full flex items-center justify-between px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                    <Select.Value placeholder="Select a product..." />
+                    <Select.Icon>
+                      <ChevronDownIcon />
+                    </Select.Icon>
+                  </Select.Trigger>
+                  <Select.Portal>
+                    <Select.Content className="bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-y-auto z-50">
+                      <Select.Viewport>
+                        {isLoadingProducts ? (
+                          <div className="p-4 text-center text-gray-500">
+                            Loading products...
+                          </div>
+                        ) : (
+                          products.map((product) => (
+                            <Select.Item
+                              key={product.id}
+                              value={product.id.toString()}
+                              className="flex items-center space-x-3 px-3 py-2 hover:bg-gray-50 cursor-pointer data-[highlighted]:bg-blue-50 data-[highlighted]:outline-none"
+                            >
+                              <Select.ItemText className="flex items-center space-x-3">
+                                {product.image && (
+                                  <img
+                                    src={product.image[0]}
+                                    alt={product.name}
+                                    className="w-8 h-8 object-cover rounded"
+                                  />
+                                )}
+                                <div>
+                                  <div className="font-medium">
+                                    {product.name}
+                                  </div>
+                                  <div className="text-sm text-gray-500">
+                                    ${product.price}
+                                  </div>
+                                </div>
+                              </Select.ItemText>
+                              <Select.ItemIndicator>
+                                <CheckIcon />
+                              </Select.ItemIndicator>
+                            </Select.Item>
+                          ))
+                        )}
+                      </Select.Viewport>
+                    </Select.Content>
+                  </Select.Portal>
+                </Select.Root>
+                {errors.product_id && (
+                  <p className="text-sm text-red-600">{errors.product_id}</p>
+                )}
+              </div>
+            )}{" "}
+            {/* Dynamic Form Fields */}
+            <div className="space-y-6">
+              {/* Name and Email in grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {reviewFields
+                  .filter((field: DynamicField) =>
+                    ["author_name", "author_email"].includes(field.id)
+                  )
+                  .map((field: DynamicField) => (
+                    <div key={field.id}>
+                      <DynamicFieldRenderer
+                        field={field}
+                        value={formValues[field.id] || ""}
+                        onChange={handleFieldChange}
+                        validationRules={{
+                          required: field.required,
+                        }}
+                      />
+                      {errors[field.id] && (
+                        <p className="text-sm text-red-600 mt-1">
+                          {errors[field.id]}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+              </div>
+
+              {/* Other fields */}
+              {reviewFields
+                .filter(
+                  (field: DynamicField) =>
+                    !["author_name", "author_email"].includes(field.id)
+                )
+                .map((field: DynamicField) => (
+                  <div key={field.id}>
+                    <DynamicFieldRenderer
+                      field={field}
+                      value={
+                        formValues[field.id] ||
+                        (field.type === "range"
+                          ? 5
+                          : field.type === "select"
+                            ? "approve"
+                            : "")
+                      }
+                      onChange={handleFieldChange}
+                      validationRules={{
+                        required: field.required,
+                      }}
+                    />
+                    {errors[field.id] && (
+                      <p className="text-sm text-red-600 mt-1">
+                        {errors[field.id]}
+                      </p>
+                    )}
+                  </div>
+                ))}
+
+              {/* Verified checkbox */}
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="verified"
+                  checked={formValues.verified || false}
+                  onChange={(e) =>
+                    handleFieldChange("verified", false, e.target.checked)
+                  }
+                  className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
+                />
+                <label htmlFor="verified" className="text-sm text-gray-700">
+                  Verified purchase
+                </label>
+              </div>
+            </div>
+            <div className="flex justify-end space-x-3 pt-4 border-t">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+                disabled={createReviewMutation.isPending}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={createReviewMutation.isPending}
+                className="flex items-center space-x-2"
+              >
+                {createReviewMutation.isPending ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    <span>Creating...</span>
+                  </>
+                ) : (
+                  <>
+                    <PlusIcon className="w-4 h-4" />
+                    <span>Create Review</span>
+                  </>
+                )}
+              </Button>
+            </div>
+          </form>
+        )}
       </DialogContent>
     </Dialog>
   );

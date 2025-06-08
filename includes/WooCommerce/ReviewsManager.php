@@ -285,7 +285,7 @@ class ReviewsManager {
 		if ( isset( $comment_status_options[ $data['status'] ] ) ) {
 			$data['status'] = $comment_status_options[ $data['status'] ];
 		} else {
-			$data['status'] = '0'; // Default to pending
+			$data['status'] = '0'; // Default to hold
 		}
 
 		// Prepare comment data
@@ -297,9 +297,9 @@ class ReviewsManager {
 			'comment_content'      => wp_kses_post( $data['content'] ),
 			'comment_type'         => 'review',
 			'comment_parent'       => isset( $data['parent'] ) ? intval( $data['parent'] ) : 0,
-			'comment_approved'     => isset( $data['status'] ) ? sanitize_text_field( $data['status'] ) : '0', // Default to pending
-			'comment_date'         => current_time( 'mysql' ),
-			'comment_date_gmt'     => current_time( 'mysql', 1 ),
+			'comment_approved'     => isset( $data['status'] ) ? sanitize_text_field( $data['status'] ) : '0', // Default to hold
+			'comment_date'         => $data['date'] ?? current_time( 'mysql' ),
+			'comment_date_gmt'     => $data['date'] ? get_gmt_from_date( $data['date'] ) : current_time( 'mysql', 1 ),
 		);
 
 		// Insert comment
@@ -595,8 +595,8 @@ class ReviewsManager {
 	 */
 	public function register_review_fields() {
 		$review_fields = array(
-			'review_author_name'  => array(
-				'id'          => 'review_author_name',
+			'author_name'   => array(
+				'id'          => 'author_name',
 				'type'        => 'text',
 				'parent'      => 'review_edit_section',
 				'title'       => esc_html__( 'Author Name', 'spider-boxes' ),
@@ -606,8 +606,8 @@ class ReviewsManager {
 				'meta_field'  => false,
 				'context'     => 'review',
 			),
-			'review_author_email' => array(
-				'id'          => 'review_author_email',
+			'author_email'  => array(
+				'id'          => 'author_email',
 				'type'        => 'text',
 				'parent'      => 'review_edit_section',
 				'title'       => esc_html__( 'Author Email', 'spider-boxes' ),
@@ -617,8 +617,8 @@ class ReviewsManager {
 				'meta_field'  => false,
 				'context'     => 'review',
 			),
-			'review_date'         => array(
-				'id'          => 'review_date',
+			'date'          => array(
+				'id'          => 'date',
 				'type'        => 'datetime',
 				'parent'      => 'review_edit_section',
 				'title'       => esc_html__( 'Review Date', 'spider-boxes' ),
@@ -627,8 +627,8 @@ class ReviewsManager {
 				'meta_field'  => false,
 				'context'     => 'review',
 			),
-			'review_content'      => array(
-				'id'          => 'review_content',
+			'content'       => array(
+				'id'          => 'content',
 				'type'        => 'textarea',
 				'parent'      => 'review_edit_section',
 				'title'       => esc_html__( 'Review Content', 'spider-boxes' ),
@@ -640,24 +640,24 @@ class ReviewsManager {
 				'context'     => 'review',
 			),
 
-			'review_status'       => array(
-				'id'          => 'review_status',
+			'status'        => array(
+				'id'          => 'status',
 				'type'        => 'select',
 				'parent'      => 'review_edit_section',
 				'title'       => esc_html__( 'Status', 'spider-boxes' ),
 				'description' => esc_html__( 'The approval status of the review', 'spider-boxes' ),
-				'value'       => 'pending',
+				'value'       => 'hold',
 				'options'     => array(
-					'approved' => array(
+					'approve' => array(
 						'label' => esc_html__( 'Approved', 'spider-boxes' ),
 					),
-					'pending'  => array(
-						'label' => esc_html__( 'Pending', 'spider-boxes' ),
+					'hold'    => array(
+						'label' => esc_html__( 'Hold', 'spider-boxes' ),
 					),
-					'spam'     => array(
+					'spam'    => array(
 						'label' => esc_html__( 'Spam', 'spider-boxes' ),
 					),
-					'trash'    => array(
+					'trash'   => array(
 						'label' => esc_html__( 'Trash', 'spider-boxes' ),
 					),
 				),
@@ -665,7 +665,7 @@ class ReviewsManager {
 				'context'     => 'review',
 			),
 
-			'rating'              => array(
+			'rating'        => array(
 				'id'          => 'rating',
 				'type'        => 'range',
 				'parent'      => 'review_edit_section',
@@ -678,7 +678,7 @@ class ReviewsManager {
 				'meta_field'  => false, // Woocommerce required field.
 				'context'     => 'review',
 			),
-			'review_images'       => array(
+			'review_images' => array(
 				'id'          => 'review_images',
 				'type'        => 'media',
 				'parent'      => 'review_edit_section',
@@ -691,7 +691,7 @@ class ReviewsManager {
 				'context'     => 'review',
 			),
 
-			'seresto_video'       => array(
+			'seresto_video' => array(
 				'id'          => 'seresto_video',
 				'type'        => 'media',
 				'parent'      => 'review_edit_section',

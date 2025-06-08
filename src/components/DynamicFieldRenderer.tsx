@@ -1,4 +1,6 @@
 import React, {useCallback, useState, useEffect} from "react";
+import {useForm, FormApi} from "@tanstack/react-form";
+
 import {
   StarIcon,
   ImageIcon,
@@ -75,7 +77,7 @@ const MediaField: React.FC<MediaFieldProps> = ({
     );
   };
 
-  console.log(mediaType, value, mediaData, loading);
+  // console.log(mediaType, value, mediaData, loading);
 
   // Helper function to determine if a file is an audio
   const isAudioFile = (data: MediaData): boolean => {
@@ -490,100 +492,293 @@ interface DynamicFieldRendererProps {
   field: DynamicField;
   value: any;
   onChange: (fieldId: string, isMeta: boolean | undefined, value: any) => void;
+  formApi?: FormApi<any, any>;
+  validationRules?: {
+    required?: boolean;
+    minLength?: number;
+    maxLength?: number;
+    min?: number;
+    max?: number;
+    pattern?: RegExp;
+    custom?: (value: any) => string | null;
+  };
 }
 
 export const DynamicFieldRenderer: React.FC<DynamicFieldRendererProps> = ({
   field,
   value,
   onChange,
+  formApi,
+  validationRules,
 }) => {
+  // Create a form instance for this field
+  //   const form = useForm({
+  //     defaultValues: {
+  //       [field.id]: value || getDefaultValue(field),
+  //     },
+  //     onSubmit: async ({value: formValue}) => {
+  //       // This won't typically be called since we're handling changes immediately
+  //       onChange(field.id, field.meta_field, formValue[field.id]);
+  //     },
+  //   });
   const handleChange = (newValue: any) => {
     onChange(field.id, field.meta_field, newValue);
   };
 
+  // Helper function to get default value based on field type
+  function getDefaultValue(field: DynamicField) {
+    switch (field.type) {
+      case "checkbox":
+        return field.options ? [] : false;
+      case "range":
+        return field.min || 0;
+      case "select":
+        return "";
+      case "media":
+        return field.multiple ? [] : null;
+      default:
+        return "";
+    }
+  }
+
+  // Update form when external value changes
+  //   useEffect(() => {
+  //     form.setFieldValue(field.id, value || getDefaultValue(field));
+  //   }, [value, field.id, field.type]);
+
+  // Validation function
+  const validateField = useCallback(
+    (fieldValue: any) => {
+      const errors: string[] = [];
+
+      // Built-in required validation
+      if (
+        field.required &&
+        (!fieldValue ||
+          fieldValue === "" ||
+          (Array.isArray(fieldValue) && fieldValue.length === 0))
+      ) {
+        errors.push(`${field.title} is required`);
+      }
+
+      // Custom validation rules
+      if (validationRules) {
+        if (
+          validationRules.minLength &&
+          typeof fieldValue === "string" &&
+          fieldValue.length < validationRules.minLength
+        ) {
+          errors.push(
+            `${field.title} must be at least ${validationRules.minLength} characters`
+          );
+        }
+
+        if (
+          validationRules.maxLength &&
+          typeof fieldValue === "string" &&
+          fieldValue.length > validationRules.maxLength
+        ) {
+          errors.push(
+            `${field.title} must not exceed ${validationRules.maxLength} characters`
+          );
+        }
+
+        if (
+          validationRules.min !== undefined &&
+          typeof fieldValue === "number" &&
+          fieldValue < validationRules.min
+        ) {
+          errors.push(`${field.title} must be at least ${validationRules.min}`);
+        }
+
+        if (
+          validationRules.max !== undefined &&
+          typeof fieldValue === "number" &&
+          fieldValue > validationRules.max
+        ) {
+          errors.push(`${field.title} must not exceed ${validationRules.max}`);
+        }
+
+        if (
+          validationRules.pattern &&
+          typeof fieldValue === "string" &&
+          !validationRules.pattern.test(fieldValue)
+        ) {
+          errors.push(`${field.title} format is invalid`);
+        }
+
+        if (validationRules.custom) {
+          const customError = validationRules.custom(fieldValue);
+          if (customError) {
+            errors.push(customError);
+          }
+        }
+      }
+
+      return errors.length > 0 ? errors[0] : undefined;
+    },
+    [field, validationRules]
+  );
+
   //   console.log(field, value);
 
   const renderField = () => {
+    // If form instance is provided, use TanStack Form
+    if (formApi) {
+      return (
+        <formApi.Field
+          name={field.id}
+          validators={{
+            onChange: validateField,
+            onBlur: validateField,
+          }}
+        >
+          {(fieldApi) => {
+            const handleFieldChange = (newValue: any) => {
+              fieldApi.handleChange(newValue);
+              // Trigger parent onChange for immediate updates
+              onChange(field.id, field.meta_field, newValue);
+            };
+
+            return renderFieldInput(
+              fieldApi.state.value,
+              handleFieldChange,
+              fieldApi.handleBlur,
+              fieldApi.state.meta.errors
+            );
+          }}
+        </formApi.Field>
+      );
+    }
+
+    // Fallback to controlled components without TanStack Form
+    return renderFieldInput(value, (newValue: any) =>
+      onChange(field.id, field.meta_field, newValue)
+    );
+  };
+
+  const renderFieldInput = (
+    currentValue: any,
+    handleChange: (value: any) => void,
+    handleBlur?: () => void,
+    errors?: string[]
+  ) => {
     switch (field.type) {
       case "text":
         return (
-          <input
-            type="text"
-            value={value || ""}
-            onChange={(e) => handleChange(e.target.value)}
-            placeholder={field.placeholder}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-          />
+          <div>
+            <input
+              type="text"
+              value={currentValue || ""}
+              onChange={(e) => handleChange(e.target.value)}
+              onBlur={handleBlur}
+              placeholder={field.placeholder}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+            />
+            {errors && errors.length > 0 && (
+              <div className="mt-1 text-sm text-red-600">
+                {errors.join(", ")}
+              </div>
+            )}
+          </div>
         );
 
       case "textarea":
         return (
-          <textarea
-            value={value || ""}
-            onChange={(e) => handleChange(e.target.value)}
-            rows={field.rows || 4}
-            placeholder={field.placeholder}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-          />
+          <div>
+            <textarea
+              value={currentValue || ""}
+              onChange={(e) => handleChange(e.target.value)}
+              onBlur={handleBlur}
+              rows={field.rows || 4}
+              placeholder={field.placeholder}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+            />
+            {errors && errors.length > 0 && (
+              <div className="mt-1 text-sm text-red-600">
+                {errors.join(", ")}
+              </div>
+            )}
+          </div>
         );
 
       case "select":
         return (
-          <select
-            value={value || ""}
-            onChange={(e) => handleChange(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-          >
-            {field.options &&
-              Object.entries(field.options).map(([optionValue, option]) => (
-                <option key={optionValue} value={optionValue}>
-                  {option.label}
-                </option>
-              ))}
-          </select>
+          <div>
+            <select
+              value={currentValue || ""}
+              onChange={(e) => handleChange(e.target.value)}
+              onBlur={handleBlur}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+            >
+              <option value="">Select an option</option>
+              {field.options &&
+                Object.entries(field.options).map(([optionValue, option]) => (
+                  <option key={optionValue} value={optionValue}>
+                    {option.label}
+                  </option>
+                ))}
+            </select>
+            {errors && errors.length > 0 && (
+              <div className="mt-1 text-sm text-red-600">
+                {errors.join(", ")}
+              </div>
+            )}
+          </div>
         );
 
       case "range":
         return (
-          <div className="space-y-2">
-            <input
-              type="range"
-              min={field.min || 0}
-              max={field.max || 100}
-              step={field.step || 1}
-              value={value || field.min || 0}
-              onChange={(e) => handleChange(parseInt(e.target.value))}
-              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
-            />
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-500">{field.min || 0}</span>
-              <div className="flex items-center space-x-1">
-                {field.id === "review_rating" && (
-                  <>
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <StarIcon
-                        key={star}
-                        className={`w-4 h-4 ${
-                          star <= (value || 0)
-                            ? "text-yellow-400 fill-current"
-                            : "text-gray-300"
-                        }`}
-                      />
-                    ))}
-                    <span className="ml-2 text-sm font-medium">
-                      {value || 0}
+          <div>
+            <div className="space-y-2">
+              <input
+                type="range"
+                min={field.min || 0}
+                max={field.max || 100}
+                step={field.step || 1}
+                value={currentValue || field.min || 0}
+                onChange={(e) => handleChange(parseInt(e.target.value))}
+                onBlur={handleBlur}
+                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+              />
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-500">{field.min || 0}</span>
+                <div className="flex items-center space-x-1">
+                  {field.id === "review_rating" && (
+                    <>
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <StarIcon
+                          key={star}
+                          className={`w-4 h-4 ${
+                            star <= (currentValue || 0)
+                              ? "text-yellow-400 fill-current"
+                              : "text-gray-300"
+                          }`}
+                        />
+                      ))}
+                      <span className="ml-2 text-sm font-medium">
+                        {currentValue || 0}
+                      </span>
+                    </>
+                  )}
+                  {field.id !== "review_rating" && (
+                    <span className="text-sm font-medium">
+                      {currentValue || 0}
                     </span>
-                  </>
-                )}
-                {field.id !== "review_rating" && (
-                  <span className="text-sm font-medium">{value || 0}</span>
-                )}
+                  )}
+                </div>
+                <span className="text-sm text-gray-500">
+                  {field.max || 100}
+                </span>
               </div>
-              <span className="text-sm text-gray-500">{field.max || 100}</span>
             </div>
+            {errors && errors.length > 0 && (
+              <div className="mt-1 text-sm text-red-600">
+                {errors.join(", ")}
+              </div>
+            )}
           </div>
         );
-
       case "datetime":
         return (
           <input
@@ -597,45 +792,59 @@ export const DynamicFieldRenderer: React.FC<DynamicFieldRendererProps> = ({
       case "checkbox":
         if (field.options) {
           // Multiple checkboxes
-          const selectedValues = Array.isArray(value) ? value : [];
+          const selectedValues = Array.isArray(currentValue)
+            ? currentValue
+            : [];
           return (
-            <div className="space-y-2">
-              {Object.entries(field.options).map(([optionValue, option]) => (
-                <label key={optionValue} className="flex items-center">
-                  <input
-                    type="checkbox"
-                    checked={selectedValues.includes(optionValue)}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        handleChange([...selectedValues, optionValue]);
-                      } else {
-                        handleChange(
-                          selectedValues.filter((v) => v !== optionValue)
-                        );
-                      }
-                    }}
-                    className="rounded border-gray-300 text-primary-600 shadow-sm focus:border-primary-300 focus:ring focus:ring-primary-200 focus:ring-opacity-50"
-                  />
-                  <span className="ml-2">{option.label}</span>
-                </label>
-              ))}
+            <div>
+              <div className="space-y-2">
+                {Object.entries(field.options).map(([optionValue, option]) => (
+                  <label key={optionValue} className="flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={selectedValues.includes(optionValue)}
+                      onChange={(e) => {
+                        const newValues = e.target.checked
+                          ? [...selectedValues, optionValue]
+                          : selectedValues.filter((v) => v !== optionValue);
+                        handleChange(newValues);
+                      }}
+                      onBlur={handleBlur}
+                      className="rounded border-gray-300 text-primary-600 shadow-sm focus:border-primary-300 focus:ring focus:ring-primary-200 focus:ring-opacity-50"
+                    />
+                    <span className="ml-2">{option.label}</span>
+                  </label>
+                ))}
+              </div>
+              {errors && errors.length > 0 && (
+                <div className="mt-1 text-sm text-red-600">
+                  {errors.join(", ")}
+                </div>
+              )}
             </div>
           );
         } else {
           // Single checkbox
           return (
-            <label className="flex items-center">
-              <input
-                type="checkbox"
-                checked={!!value}
-                onChange={(e) => handleChange(e.target.checked)}
-                className="rounded border-gray-300 text-primary-600 shadow-sm focus:border-primary-300 focus:ring focus:ring-primary-200 focus:ring-opacity-50"
-              />
-              <span className="ml-2">{field.title}</span>
-            </label>
+            <div>
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={!!currentValue}
+                  onChange={(e) => handleChange(e.target.checked)}
+                  onBlur={handleBlur}
+                  className="rounded border-gray-300 text-primary-600 shadow-sm focus:border-primary-300 focus:ring focus:ring-primary-200 focus:ring-opacity-50"
+                />
+                <span className="ml-2">{field.title}</span>
+              </label>
+              {errors && errors.length > 0 && (
+                <div className="mt-1 text-sm text-red-600">
+                  {errors.join(", ")}
+                </div>
+              )}
+            </div>
           );
         }
-
       case "radio":
         return (
           <div className="space-y-2">
@@ -675,12 +884,19 @@ export const DynamicFieldRenderer: React.FC<DynamicFieldRendererProps> = ({
 
       case "media":
         return (
-          <MediaField
-            value={value}
-            onChange={handleChange}
-            multiple={field.multiple}
-            mediaType={field.media_type}
-          />
+          <div>
+            <MediaField
+              value={currentValue}
+              onChange={handleChange}
+              multiple={field.multiple}
+              mediaType={field.media_type}
+            />
+            {errors && errors.length > 0 && (
+              <div className="mt-1 text-sm text-red-600">
+                {errors.join(", ")}
+              </div>
+            )}
+          </div>
         );
 
       default:
