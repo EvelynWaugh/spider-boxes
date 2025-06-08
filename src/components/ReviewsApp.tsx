@@ -1,14 +1,14 @@
-import React, {useState, useMemo} from "react";
+import React, {useState, useMemo, useEffect} from "react";
 import {useQuery, useMutation, useQueryClient} from "@tanstack/react-query";
 import {
   createColumnHelper,
   getCoreRowModel,
-  getPaginationRowModel,
   getSortedRowModel,
   getFilteredRowModel,
   useReactTable,
   type SortingState,
   type ColumnFiltersState,
+  type PaginationState,
 } from "@tanstack/react-table";
 import {
   DndContext,
@@ -46,6 +46,7 @@ import {
   ChevronRightIcon,
 } from "@radix-ui/react-icons";
 import {useAPI} from "../hooks/useAPI";
+import {cn} from "../utils/cn";
 import {DynamicField, DynamicFieldRenderer} from "./DynamicFieldRenderer";
 
 interface Review {
@@ -56,7 +57,7 @@ interface Review {
   author_email: string;
   rating: number;
   content: string;
-  status: "approved" | "pending" | "spam" | "trash";
+  status: "approved" | "hold" | "spam" | "trash";
   date: string;
   date_gmt: string;
   author_url?: string;
@@ -134,6 +135,28 @@ export const ReviewsApp: React.FC<ReviewsAppProps> = ({productId}) => {
   const [selectedReview, setSelectedReview] = useState<Review | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [fieldValues, setFieldValues] = useState<Record<string, any>>({});
+  // Server-side pagination state
+  const [pagination, setPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: 20,
+  });
+
+  // Debounced search state
+  const [debouncedGlobalFilter, setDebouncedGlobalFilter] = useState("");
+
+  // Reset pagination when filters change
+  useEffect(() => {
+    setPagination((prev) => ({...prev, pageIndex: 0}));
+  }, [globalFilter, columnFilters, productId]);
+
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedGlobalFilter(globalFilter);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [globalFilter]);
 
   // Sensors for drag and drop
   const sensors = useSensors(
@@ -152,21 +175,59 @@ export const ReviewsApp: React.FC<ReviewsAppProps> = ({productId}) => {
 
   const reviewFields: DynamicField[] = fieldsData?.fields
     ? Object.values(fieldsData.fields)
-    : [];
-  // Fetch reviews
+    : []; // Fetch reviews with server-side pagination
   const {
     data: reviewsData,
     isLoading,
     error,
+    isFetching,
   } = useQuery({
-    queryKey: ["reviews", productId],
-    queryFn: () =>
-      get(`/reviews${productId ? `?product_id=${productId}` : ""}`),
+    queryKey: [
+      "reviews",
+      productId,
+      pagination.pageIndex + 1,
+      pagination.pageSize,
+      debouncedGlobalFilter,
+      columnFilters,
+    ],
+    queryFn: () => {
+      const params = new URLSearchParams();
+
+      // Add pagination
+      params.set("page", String(pagination.pageIndex + 1));
+      params.set("per_page", String(pagination.pageSize));
+
+      // Add product filter
+      if (productId) {
+        params.set("product_id", String(productId));
+      }
+
+      // Add search filter
+      if (debouncedGlobalFilter) {
+        params.set("search", debouncedGlobalFilter);
+      }
+
+      // Add status filter
+      const statusFilter = columnFilters.find((f) => f.id === "status");
+      if (statusFilter?.value) {
+        params.set("status", String(statusFilter.value));
+      }
+
+      // Add sorting
+      if (sorting.length > 0) {
+        const sort = sorting[0];
+        params.set("orderby", sort.id === "date" ? "comment_date" : sort.id);
+        params.set("order", sort.desc ? "DESC" : "ASC");
+      }
+
+      return get(`/reviews?${params.toString()}`);
+    },
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
-
   console.log("Reviews data:", reviewsData);
   const reviews = reviewsData?.reviews || [];
+  const totalItems = reviewsData?.total || 0;
+  const totalPages = reviewsData?.pages || 1;
 
   // Update review mutation
   const updateReviewMutation = useMutation({
@@ -174,6 +235,12 @@ export const ReviewsApp: React.FC<ReviewsAppProps> = ({productId}) => {
       patch(`/reviews/${id}`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({queryKey: ["reviews"]});
+      setIsDialogOpen(false);
+      setFieldValues({});
+      setSelectedReview(null);
+    },
+    onError: (error) => {
+      console.error("Failed to update review:", error);
     },
   });
 
@@ -238,7 +305,7 @@ export const ReviewsApp: React.FC<ReviewsAppProps> = ({productId}) => {
           const status = info.getValue();
           const statusColors = {
             approved: "bg-green-100 text-green-800",
-            pending: "bg-yellow-100 text-yellow-800",
+            hold: "bg-yellow-100 text-yellow-800",
             spam: "bg-red-100 text-red-800",
             trash: "bg-gray-100 text-gray-800",
           };
@@ -299,19 +366,20 @@ export const ReviewsApp: React.FC<ReviewsAppProps> = ({productId}) => {
       columnFilters,
       globalFilter,
       columnOrder,
+      pagination,
     },
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onGlobalFilterChange: setGlobalFilter,
+    onPaginationChange: setPagination,
     getCoreRowModel: getCoreRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
-    initialState: {
-      pagination: {
-        pageSize: 20,
-      },
-    },
+    // Server-side pagination
+    manualPagination: true,
+    manualSorting: true,
+    manualFiltering: true,
+    pageCount: totalPages,
   });
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -355,9 +423,17 @@ export const ReviewsApp: React.FC<ReviewsAppProps> = ({productId}) => {
 
   return (
     <div className="reviews-app">
+      {" "}
       <div className="reviews-header">
-        <h2 className="text-2xl font-bold mb-4">Product Reviews</h2>
-
+        <h2 className="text-2xl font-bold mb-4">
+          Product Reviews
+          {isFetching && (
+            <span className="ml-2 inline-flex items-center">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+              <span className="ml-1 text-sm text-gray-500">Loading...</span>
+            </span>
+          )}
+        </h2>{" "}
         {/* Search and Filters */}
         <div className="mb-6 flex flex-col sm:flex-row gap-4">
           <div className="flex-1">
@@ -367,6 +443,7 @@ export const ReviewsApp: React.FC<ReviewsAppProps> = ({productId}) => {
               value={globalFilter}
               onChange={(e) => setGlobalFilter(e.target.value)}
               className="search-input"
+              disabled={isFetching}
             />
           </div>
           <div className="flex gap-2">
@@ -387,12 +464,30 @@ export const ReviewsApp: React.FC<ReviewsAppProps> = ({productId}) => {
                 );
               }}
               className="filter-select"
+              disabled={isFetching}
             >
               <option value="">All Statuses</option>
-              <option value="approved">Approved</option>
-              <option value="pending">Pending</option>
+              <option value="approve">Approved</option>
+              <option value="hold">Hold</option>
               <option value="spam">Spam</option>
               <option value="trash">Trash</option>
+            </select>
+            <select
+              value={pagination.pageSize}
+              onChange={(e) => {
+                setPagination((prev) => ({
+                  ...prev,
+                  pageSize: Number(e.target.value),
+                  pageIndex: 0, // Reset to first page when changing page size
+                }));
+              }}
+              className="filter-select"
+              disabled={isFetching}
+            >
+              <option value={10}>10 per page</option>
+              <option value={20}>20 per page</option>
+              <option value={50}>50 per page</option>
+              <option value={100}>100 per page</option>
             </select>
           </div>
         </div>
@@ -486,7 +581,7 @@ export const ReviewsApp: React.FC<ReviewsAppProps> = ({productId}) => {
                             className={`spider-boxes-badge ${
                               row.original.status === "approved"
                                 ? "spider-boxes-badge-success"
-                                : row.original.status === "pending"
+                                : row.original.status === "hold"
                                   ? "spider-boxes-badge-warning"
                                   : row.original.status === "spam"
                                     ? "spider-boxes-badge-danger"
@@ -529,7 +624,7 @@ export const ReviewsApp: React.FC<ReviewsAppProps> = ({productId}) => {
                             >
                               <TrashIcon className="w-4 h-4" />
                             </button>
-                            {row.original.status === "pending" && (
+                            {row.original.status === "hold" && (
                               <button
                                 onClick={() =>
                                   handleStatusChange(
@@ -546,10 +641,10 @@ export const ReviewsApp: React.FC<ReviewsAppProps> = ({productId}) => {
                             {row.original.status === "approved" && (
                               <button
                                 onClick={() =>
-                                  handleStatusChange(row.original.id, "pending")
+                                  handleStatusChange(row.original.id, "hold")
                                 }
                                 className="text-yellow-600 hover:text-yellow-900"
-                                title="Mark as pending"
+                                title="Mark as hold"
                               >
                                 <Cross1Icon className="w-4 h-4" />
                               </button>
@@ -564,41 +659,40 @@ export const ReviewsApp: React.FC<ReviewsAppProps> = ({productId}) => {
             </div>
           </div>
         </DndContext>
-      )}
+      )}{" "}
       {/* Pagination */}
       <div className="flex items-center justify-between py-4">
         <div className="text-sm text-gray-700">
           Showing{" "}
-          {table.getState().pagination.pageIndex *
-            table.getState().pagination.pageSize +
-            1}{" "}
+          {totalItems === 0
+            ? 0
+            : pagination.pageIndex * pagination.pageSize + 1}{" "}
           to{" "}
           {Math.min(
-            (table.getState().pagination.pageIndex + 1) *
-              table.getState().pagination.pageSize,
-            table.getFilteredRowModel().rows.length
+            (pagination.pageIndex + 1) * pagination.pageSize,
+            totalItems
           )}{" "}
-          of {table.getFilteredRowModel().rows.length} results
+          of {totalItems} results
         </div>
         <div className="flex items-center space-x-2">
+          {" "}
           <Button
             variant="outline"
             size="sm"
             onClick={() => table.previousPage()}
-            disabled={!table.getCanPreviousPage()}
+            disabled={!table.getCanPreviousPage() || isFetching}
           >
             <ChevronLeftIcon className="w-4 h-4" />
             Previous
           </Button>
           <span className="text-sm text-gray-700">
-            Page {table.getState().pagination.pageIndex + 1} of{" "}
-            {table.getPageCount()}
+            Page {pagination.pageIndex + 1} of {totalPages}
           </span>
           <Button
             variant="outline"
             size="sm"
             onClick={() => table.nextPage()}
-            disabled={!table.getCanNextPage()}
+            disabled={!table.getCanNextPage() || isFetching}
           >
             Next
             <ChevronRightIcon className="w-4 h-4" />
@@ -756,8 +850,6 @@ export const ReviewsApp: React.FC<ReviewsAppProps> = ({productId}) => {
                         id: selectedReview.id,
                         data: updateData,
                       });
-                      setIsDialogOpen(false);
-                      setFieldValues({});
                     }}
                     disabled={updateReviewMutation.isPending}
                   >
