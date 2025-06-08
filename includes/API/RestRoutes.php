@@ -217,8 +217,7 @@ class RestRoutes {
 					'permission_callback' => array( $this, 'check_permissions' ),
 				),
 			)
-		);
-		// Reviews endpoint (if WooCommerce is active)
+		);      // Reviews endpoint (if WooCommerce is active)
 		if ( class_exists( 'WooCommerce' ) ) {
 			register_rest_route(
 				$this->namespace,
@@ -230,12 +229,17 @@ class RestRoutes {
 						'permission_callback' => array( $this, 'check_reviews_permissions' ),
 					),
 					array(
+						'methods'             => WP_REST_Server::CREATABLE,
+						'callback'            => array( $this, 'create_review' ),
+						'permission_callback' => array( $this, 'check_reviews_permissions' ),
+					),
+					array(
 						'methods'             => WP_REST_Server::EDITABLE,
 						'callback'            => array( $this, 'update_review' ),
 						'permission_callback' => array( $this, 'check_reviews_permissions' ),
 					),
 				)
-			);          register_rest_route(
+			);register_rest_route(
 				$this->namespace,
 				'/reviews/(?P<id>\\d+)',
 				array(
@@ -255,15 +259,24 @@ class RestRoutes {
 						'permission_callback' => array( $this, 'check_reviews_permissions' ),
 					),
 				)
-			);
-
-			// Review fields endpoint
+			);          // Review fields endpoint
 			register_rest_route(
 				$this->namespace,
 				'/reviews/fields',
 				array(
 					'methods'             => WP_REST_Server::READABLE,
 					'callback'            => array( $this, 'get_review_fields' ),
+					'permission_callback' => array( $this, 'check_reviews_permissions' ),
+				)
+			);
+
+			// Products endpoint for review creation
+			register_rest_route(
+				$this->namespace,
+				'/products',
+				array(
+					'methods'             => WP_REST_Server::READABLE,
+					'callback'            => array( $this, 'get_products' ),
 					'permission_callback' => array( $this, 'check_reviews_permissions' ),
 				)
 			);
@@ -979,6 +992,65 @@ class RestRoutes {
 
 		// Apply filters for extensibility
 		$response_data = apply_filters( 'spider_boxes_rest_delete_review_response', $response_data, $request );
+		return rest_ensure_response( $response_data );
+	}
+
+	/**
+	 * Create review (WooCommerce integration)
+	 *
+	 * @param WP_REST_Request $request Request object.
+	 * @return WP_REST_Response|WP_Error
+	 */
+	public function create_review( $request ) {
+		if ( ! class_exists( 'WooCommerce' ) ) {
+			return new WP_Error(
+				'woocommerce_not_active',
+				__( 'WooCommerce is not active', 'spider-boxes' ),
+				array( 'status' => 400 )
+			);
+		}
+
+		$params = $request->get_json_params();
+
+		if ( empty( $params ) ) {
+			return new WP_Error(
+				'no_review_data',
+				__( 'No review data provided', 'spider-boxes' ),
+				array( 'status' => 400 )
+			);
+		}
+
+		// Validate required fields
+		$required_fields = array( 'product_id', 'author_name', 'author_email', 'content', 'rating' );
+		foreach ( $required_fields as $field ) {
+			if ( empty( $params[ $field ] ) ) {
+				return new WP_Error(
+					'missing_required_field',
+					// translators: %s is the field name.
+					sprintf( __( 'Missing required field: %s', 'spider-boxes' ), $field ),
+					array( 'status' => 400 )
+				);
+			}
+		}
+
+		$reviews_manager = spider_boxes()->get_container()->get( 'reviewsManager' );
+		$result          = $reviews_manager->create_review( $params );
+
+		if ( is_wp_error( $result ) ) {
+			return $result;
+		}
+
+		// Get the created review data
+		$created_review = $reviews_manager->get_review( $result );
+
+		$response_data = array(
+			'success' => true,
+			'review'  => $created_review,
+			'id'      => $result,
+		);
+
+		// Apply filters for extensibility
+		$response_data = apply_filters( 'spider_boxes_rest_create_review_response', $response_data, $request );
 
 		return rest_ensure_response( $response_data );
 	}
@@ -1275,7 +1347,72 @@ class RestRoutes {
 
 		// Convert Collection to array for JSON response
 		$fields_array = $review_fields->toArray();
-
 		return rest_ensure_response( array( 'fields' => $fields_array ) );
+	}
+
+	/**
+	 * Get products (WooCommerce integration)
+	 *
+	 * @param WP_REST_Request $request Request object
+	 * @return WP_REST_Response|WP_Error
+	 */
+	public function get_products( $request ) {
+		if ( ! class_exists( 'WooCommerce' ) ) {
+			return new WP_Error(
+				'woocommerce_not_active',
+				__( 'WooCommerce is not active', 'spider-boxes' ),
+				array( 'status' => 400 )
+			);
+		}
+
+		// Get query parameters
+		$search   = $request->get_param( 'search' ) ? sanitize_text_field( $request->get_param( 'search' ) ) : '';
+		$per_page = $request->get_param( 'per_page' ) ? absint( $request->get_param( 'per_page' ) ) : 20;
+		$page     = $request->get_param( 'page' ) ? absint( $request->get_param( 'page' ) ) : 1;
+
+		// Build query arguments
+		$args = array(
+			'post_type'      => 'product',
+			'post_status'    => 'publish',
+			'posts_per_page' => $per_page,
+			'paged'          => $page,
+			'orderby'        => 'title',
+			'order'          => 'ASC',
+		);
+
+		// Add search filter
+		if ( ! empty( $search ) ) {
+			$args['s'] = $search;
+		}
+
+		// Get products
+		$products_query = new \WP_Query( $args );
+		$products       = array();
+
+		foreach ( $products_query->posts as $product_post ) {
+			$product = wc_get_product( $product_post->ID );
+
+			if ( $product ) {
+				$products[] = array(
+					'id'    => $product->get_id(),
+					'name'  => $product->get_name(),
+					'slug'  => $product->get_slug(),
+					'type'  => $product->get_type(),
+					'price' => $product->get_price(),
+					'image' => wp_get_attachment_image_src( $product->get_image_id(), 'thumbnail' ),
+				);
+			}
+		}
+
+		$response_data = array(
+			'products' => $products,
+			'total'    => $products_query->found_posts,
+			'pages'    => $products_query->max_num_pages,
+		);
+
+		// Apply filters for extensibility
+		$response_data = apply_filters( 'spider_boxes_rest_products_response', $response_data, $request );
+
+		return rest_ensure_response( $response_data );
 	}
 }

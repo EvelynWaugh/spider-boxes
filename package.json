@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "watch": "vite build --watch",
-	"watch:src": "vite build --watch --mode development",
+    "watch:src": "vite build --watch --mode development",
     "preview": "vite preview",
     "lint": "eslint src --ext .ts,.tsx,.js,.jsx",
     "lint:fix": "eslint src --ext .ts,.tsx,.js,.jsx --fix",
@@ -42,6 +42,7 @@
     "framer-motion": "^10.14.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "react-select": "^5.10.1",
     "tailwind-merge": "^3.3.0",
     "zustand": "^5.0.5"
   },

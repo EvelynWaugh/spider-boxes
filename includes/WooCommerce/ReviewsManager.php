@@ -235,8 +235,99 @@ class ReviewsManager {
 		}
 
 		do_action( 'spider_boxes_review_updated', $review_id, $data );
-
 		return true;
+	}
+
+	/**
+	 * Create review
+	 *
+	 * @param array $data Review data
+	 * @return int|\WP_Error Review ID on success, WP_Error on failure
+	 */
+	public function create_review( $data ) {
+		// Validate required fields
+		$required_fields = array( 'product_id', 'author_name', 'author_email', 'content', 'rating' );
+		foreach ( $required_fields as $field ) {
+			if ( empty( $data[ $field ] ) ) {
+				return new \WP_Error(
+					'missing_required_field',
+					// translators: %s is the field name.
+					sprintf( __( 'Missing required field: %s', 'spider-boxes' ), $field ),
+					array( 'status' => 400 )
+				);
+			}
+		}
+
+		// Validate product exists
+		$product = wc_get_product( $data['product_id'] );
+		if ( ! $product ) {
+			return new \WP_Error( 'invalid_product', __( 'Product not found', 'spider-boxes' ) );
+		}
+
+		// Validate rating
+		$rating = intval( $data['rating'] );
+		if ( $rating < 1 || $rating > 5 ) {
+			return new \WP_Error( 'invalid_rating', __( 'Rating must be between 1 and 5', 'spider-boxes' ) );
+		}
+
+		// Validate email
+		if ( ! is_email( $data['author_email'] ) ) {
+			return new \WP_Error( 'invalid_email', __( 'Invalid email address', 'spider-boxes' ) );
+		}
+
+		$comment_status_options = array(
+			'approve' => '1',
+			'hold'    => '0',
+			'spam'    => 'spam',
+			'trash'   => 'trash',
+		);
+
+		if ( isset( $comment_status_options[ $data['status'] ] ) ) {
+			$data['status'] = $comment_status_options[ $data['status'] ];
+		} else {
+			$data['status'] = '0'; // Default to pending
+		}
+
+		// Prepare comment data
+		$comment_data = array(
+			'comment_post_ID'      => $data['product_id'],
+			'comment_author'       => sanitize_text_field( $data['author_name'] ),
+			'comment_author_email' => sanitize_email( $data['author_email'] ),
+			'comment_author_url'   => isset( $data['author_url'] ) ? esc_url_raw( $data['author_url'] ) : '',
+			'comment_content'      => wp_kses_post( $data['content'] ),
+			'comment_type'         => 'review',
+			'comment_parent'       => isset( $data['parent'] ) ? intval( $data['parent'] ) : 0,
+			'comment_approved'     => isset( $data['status'] ) ? sanitize_text_field( $data['status'] ) : '0', // Default to pending
+			'comment_date'         => current_time( 'mysql' ),
+			'comment_date_gmt'     => current_time( 'mysql', 1 ),
+		);
+
+		// Insert comment
+		$comment_id = wp_insert_comment( $comment_data );
+
+		if ( ! $comment_id ) {
+			return new \WP_Error( 'create_failed', __( 'Failed to create review', 'spider-boxes' ) );
+		}
+
+		// Add rating meta
+		update_comment_meta( $comment_id, 'rating', $rating );
+
+		// Add verified purchase meta if provided
+		if ( isset( $data['verified'] ) ) {
+			update_comment_meta( $comment_id, 'verified', (bool) $data['verified'] );
+		}
+
+		// Add custom meta fields
+		if ( isset( $data['meta'] ) && is_array( $data['meta'] ) ) {
+			foreach ( $data['meta'] as $key => $value ) {
+				update_comment_meta( $comment_id, sanitize_key( $key ), $value );
+			}
+		}
+
+		// Trigger action for extensibility
+		do_action( 'spider_boxes_review_created', $comment_id, $data );
+
+		return $comment_id;
 	}
 
 	/**

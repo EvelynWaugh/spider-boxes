@@ -44,10 +44,11 @@ import {
   Cross1Icon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  PlusIcon,
 } from "@radix-ui/react-icons";
 import {useAPI} from "../hooks/useAPI";
-import {cn} from "../utils/cn";
 import {DynamicField, DynamicFieldRenderer} from "./DynamicFieldRenderer";
+import {AddReviewDialog} from "./AddReviewDialog";
 
 interface Review {
   id: number;
@@ -135,6 +136,7 @@ export const ReviewsApp: React.FC<ReviewsAppProps> = ({productId}) => {
   const [selectedReview, setSelectedReview] = useState<Review | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [fieldValues, setFieldValues] = useState<Record<string, any>>({});
+  const [isAddReviewDialogOpen, setIsAddReviewDialogOpen] = useState(false);
   // Server-side pagination state
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
@@ -432,8 +434,20 @@ export const ReviewsApp: React.FC<ReviewsAppProps> = ({productId}) => {
               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
               <span className="ml-1 text-sm text-gray-500">Loading...</span>
             </span>
-          )}
-        </h2>{" "}
+          )}{" "}
+        </h2>
+
+        {/* Add New Review Button */}
+        <div className="mb-6">
+          <Button
+            onClick={() => setIsAddReviewDialogOpen(true)}
+            className="flex items-center space-x-2"
+          >
+            <PlusIcon className="w-4 h-4" />
+            <span>Add New Review</span>
+          </Button>
+        </div>
+
         {/* Search and Filters */}
         <div className="mb-6 flex flex-col sm:flex-row gap-4">
           <div className="flex-1">
@@ -866,9 +880,15 @@ export const ReviewsApp: React.FC<ReviewsAppProps> = ({productId}) => {
                 </p>
               </div>
             )}
-          </div>
+          </div>{" "}
         </DialogContent>
       </Dialog>
+      {/* Add Review Dialog */}
+      <AddReviewDialog
+        isOpen={isAddReviewDialogOpen}
+        onOpenChange={setIsAddReviewDialogOpen}
+        productId={productId}
+      />
     </div>
   );
 };
