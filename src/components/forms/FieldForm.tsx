@@ -101,7 +101,6 @@ export const FieldForm: React.FC<FieldFormProps> = ({
         }}
         className="space-y-4"
       >
-        {" "}
         {field?.id ? (
           <form.Field name="id">
             {(field) => (

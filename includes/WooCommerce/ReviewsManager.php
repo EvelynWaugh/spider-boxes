@@ -127,6 +127,17 @@ class ReviewsManager {
 		$product = wc_get_product( $comment->comment_post_ID );
 		$rating  = get_comment_meta( $comment->comment_ID, 'rating', true );
 
+		$comment_status = $comment->comment_approved;
+		if ( $comment_status === '1' ) {
+			$comment_status = 'approve';
+		} elseif ( $comment_status === '0' ) {
+			$comment_status = 'hold';
+		} elseif ( $comment_status === 'spam' ) {
+			$comment_status = 'spam';
+		} elseif ( $comment_status === 'trash' ) {
+			$comment_status = 'trash';
+		}
+
 		$formatted = array(
 			'id'           => $comment->comment_ID,
 			'product_id'   => $comment->comment_post_ID,
@@ -138,7 +149,7 @@ class ReviewsManager {
 			'rating'       => intval( $rating ),
 			'date'         => $comment->comment_date,
 			'date_gmt'     => $comment->comment_date_gmt,
-			'status'       => wp_get_comment_status( $comment->comment_ID ),
+			'status'       => $comment_status,
 			'parent'       => $comment->comment_parent,
 			'meta'         => array(),
 		);
@@ -212,7 +223,25 @@ class ReviewsManager {
 		}
 
 		if ( isset( $data['status'] ) ) {
-			$comment_data['comment_approved'] = $data['status'];
+
+			$valid_statuses = array( 'approve', 'hold', 'spam', 'trash' );
+			if ( ! in_array( $data['status'], $valid_statuses, true ) ) {
+				return new \WP_Error(
+					'invalid_status',
+					// translators: %s is the status.
+					sprintf( __( 'Invalid status: %s', 'spider-boxes' ), $data['status'] ),
+					array( 'status' => 400 )
+				);
+			}
+			if ( $data['status'] === 'approve' ) {
+				$comment_data['comment_approved'] = 1; // Approve
+			} elseif ( $data['status'] === 'hold' ) {
+				$comment_data['comment_approved'] = 0; // Hold
+			} elseif ( $data['status'] === 'spam' ) {
+				$comment_data['comment_approved'] = 'spam'; // Spam
+			} elseif ( $data['status'] === 'trash' ) {
+				$comment_data['comment_approved'] = 'trash'; // Trash
+			}
 		}
 
 		// Update comment
@@ -600,10 +629,17 @@ class ReviewsManager {
 				'type'        => 'text',
 				'parent'      => 'review_edit_section',
 				'title'       => esc_html__( 'Author Name', 'spider-boxes' ),
+				'placeholder' => esc_html__( 'Enter author name', 'spider-boxes' ),
 				'description' => esc_html__( 'The name of the review author', 'spider-boxes' ),
 				'value'       => '',
 				'required'    => true,
 				'meta_field'  => false,
+				'validation'  => array(
+
+					'min'     => 1,
+					'max'     => 255,
+					'message' => esc_html__( 'Author name must be between 1 and 255 characters.', 'spider-boxes' ),
+				),
 				'context'     => 'review',
 			),
 			'author_email'  => array(
@@ -611,10 +647,16 @@ class ReviewsManager {
 				'type'        => 'text',
 				'parent'      => 'review_edit_section',
 				'title'       => esc_html__( 'Author Email', 'spider-boxes' ),
+				'placeholder' => esc_html__( 'Enter author email', 'spider-boxes' ),
 				'description' => esc_html__( 'The email address of the review author', 'spider-boxes' ),
 				'value'       => '',
 				'required'    => true,
 				'meta_field'  => false,
+				'validation'  => array(
+
+					'pattern' => '/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/',
+					'message' => esc_html__( 'Please enter a valid email address.', 'spider-boxes' ),
+				),
 				'context'     => 'review',
 			),
 			'date'          => array(
@@ -625,6 +667,11 @@ class ReviewsManager {
 				'description' => esc_html__( 'The date when the review was created', 'spider-boxes' ),
 				'value'       => '',
 				'meta_field'  => false,
+				'validation'  => array(
+
+					'format'  => 'Y-m-d H:i:s',
+					'message' => esc_html__( 'Please enter a valid date and time.', 'spider-boxes' ),
+				),
 				'context'     => 'review',
 			),
 			'content'       => array(
@@ -637,6 +684,11 @@ class ReviewsManager {
 				'rows'        => 4,
 				'required'    => true,
 				'meta_field'  => false,
+				'validation'  => array(
+					'min'     => 1,
+					'max'     => 1000,
+					'message' => esc_html__( 'Review content must be between 1 and 1000 characters.', 'spider-boxes' ),
+				),
 				'context'     => 'review',
 			),
 
@@ -645,6 +697,7 @@ class ReviewsManager {
 				'type'        => 'select',
 				'parent'      => 'review_edit_section',
 				'title'       => esc_html__( 'Status', 'spider-boxes' ),
+				'placeholder' => esc_html__( 'Choose a status', 'spider-boxes' ),
 				'description' => esc_html__( 'The approval status of the review', 'spider-boxes' ),
 				'value'       => 'hold',
 				'options'     => array(
@@ -676,6 +729,7 @@ class ReviewsManager {
 				'max'         => 5,
 				'step'        => 1,
 				'meta_field'  => false, // Woocommerce required field.
+
 				'context'     => 'review',
 			),
 			'review_images' => array(
@@ -688,6 +742,7 @@ class ReviewsManager {
 				'multiple'    => true,
 				'media_type'  => 'image',
 				'meta_field'  => true,
+
 				'context'     => 'review',
 			),
 

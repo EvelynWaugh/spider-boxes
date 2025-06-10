@@ -1,14 +1,19 @@
-import React, {useCallback, useState, useEffect} from "react";
-import {useForm, FormApi} from "@tanstack/react-form";
+import React, { useCallback, useState, useEffect } from "react";
+import { FormApi } from "@tanstack/react-form";
 
-import {
-  StarIcon,
-  ImageIcon,
-  Cross2Icon,
-  VideoIcon,
-  PlayIcon,
-  SpeakerLoudIcon,
-} from "@radix-ui/react-icons";
+import { useQuery } from "@tanstack/react-query";
+
+import { useAPI } from "@/hooks/useAPI";
+
+import { StarIcon, ImageIcon, Cross2Icon, VideoIcon, PlayIcon, SpeakerLoudIcon } from "@radix-ui/react-icons";
+
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
+
+import * as SelectRadix from "@radix-ui/react-select";
+
+import { PlusIcon, ChevronDownIcon, CheckIcon } from "@radix-ui/react-icons";
+
+import { useFieldValidation } from "@/hooks/useFieldValidation";
 
 // WordPress Media Library types
 declare global {
@@ -51,12 +56,7 @@ interface MediaFieldProps {
   mediaType?: string;
 }
 
-const MediaField: React.FC<MediaFieldProps> = ({
-  value,
-  onChange,
-  multiple = false,
-  mediaType = "image",
-}) => {
+const MediaField: React.FC<MediaFieldProps> = ({ value, onChange, multiple = false, mediaType = "image" }) => {
   const [mediaData, setMediaData] = useState<Record<string, MediaData>>({});
   const [loading, setLoading] = useState<Record<string, boolean>>({});
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -64,27 +64,17 @@ const MediaField: React.FC<MediaFieldProps> = ({
 
   // Helper function to determine if a file is an image
   const isImageFile = (data: MediaData): boolean => {
-    return (
-      data.type === "image" ||
-      data.url.match(/\.(jpg|jpeg|png|gif|webp|svg|bmp|tiff|ico)$/i) !== null
-    );
+    return data.type === "image" || data.url.match(/\.(jpg|jpeg|png|gif|webp|svg|bmp|tiff|ico)$/i) !== null;
   }; // Helper function to determine if a file is a video
   const isVideoFile = (data: MediaData): boolean => {
-    return (
-      data.type === "video" ||
-      data.url.match(/\.(mp4|webm|ogg|avi|mov|wmv|flv|mkv|m4v|3gp|ogv)$/i) !==
-        null
-    );
+    return data.type === "video" || data.url.match(/\.(mp4|webm|ogg|avi|mov|wmv|flv|mkv|m4v|3gp|ogv)$/i) !== null;
   };
 
   // console.log(mediaType, value, mediaData, loading);
 
   // Helper function to determine if a file is an audio
   const isAudioFile = (data: MediaData): boolean => {
-    return (
-      data.type === "audio" ||
-      data.url.match(/\.(mp3|wav|ogg|aac|flac|wma|m4a|opus)$/i) !== null
-    );
+    return data.type === "audio" || data.url.match(/\.(mp3|wav|ogg|aac|flac|wma|m4a|opus)$/i) !== null;
   };
   // Helper function to get the appropriate icon for media type
   const getMediaIcon = (data?: MediaData): React.ReactNode => {
@@ -133,7 +123,7 @@ const MediaField: React.FC<MediaFieldProps> = ({
         loadingUpdates[id] = true;
       });
 
-      setLoading((prev) => ({...prev, ...loadingUpdates}));
+      setLoading((prev) => ({ ...prev, ...loadingUpdates }));
 
       for (const id of idsToFetch) {
         try {
@@ -165,16 +155,16 @@ const MediaField: React.FC<MediaFieldProps> = ({
       }
 
       // Update both media data and loading state
-      setMediaData((prev) => ({...prev, ...newMediaData}));
+      setMediaData((prev) => ({ ...prev, ...newMediaData }));
       setLoading((prev) => {
-        const updated = {...prev};
+        const updated = { ...prev };
         idsToFetch.forEach((id) => {
           updated[id] = false;
         });
         return updated;
       });
     },
-    [mediaType] // Remove mediaData and loading from dependencies
+    [mediaType], // Remove mediaData and loading from dependencies
   );
 
   // Effect to fetch media data when value changes
@@ -221,9 +211,7 @@ const MediaField: React.FC<MediaFieldProps> = ({
       const selection = mediaFrame.state().get("selection").toJSON();
 
       if (multiple) {
-        const mediaIds: string[] = selection.map((item: any) =>
-          item.id.toString()
-        );
+        const mediaIds: string[] = selection.map((item: any) => item.id.toString());
         onChange(mediaIds);
       } else {
         const item = selection[0];
@@ -243,18 +231,14 @@ const MediaField: React.FC<MediaFieldProps> = ({
 
   const removeMedia = useCallback(
     (indexToRemove?: number) => {
-      if (
-        multiple &&
-        Array.isArray(value) &&
-        typeof indexToRemove === "number"
-      ) {
+      if (multiple && Array.isArray(value) && typeof indexToRemove === "number") {
         const newValue = value.filter((_, index) => index !== indexToRemove);
         onChange(newValue.length > 0 ? newValue : null);
       } else {
         onChange(null);
       }
     },
-    [multiple, value, onChange]
+    [multiple, value, onChange],
   );
 
   const renderMediaPreview = (id: string, index?: number) => {
@@ -263,15 +247,10 @@ const MediaField: React.FC<MediaFieldProps> = ({
 
     if (isLoading) {
       return (
-        <div
-          key={id}
-          className="relative border border-gray-300 rounded-lg p-2 bg-gray-50"
-        >
+        <div key={id} className="relative border border-gray-300 rounded-lg p-2 bg-gray-50">
           <div className="flex items-center space-x-3">
             {" "}
-            <div className="w-16 h-16 bg-gray-200 rounded flex items-center justify-center animate-pulse">
-              {getMediaIcon()}
-            </div>
+            <div className="w-16 h-16 bg-gray-200 rounded flex items-center justify-center animate-pulse">{getMediaIcon()}</div>
             <div className="flex-1 min-w-0">
               <div className="h-4 bg-gray-200 rounded animate-pulse mb-2"></div>
               <div className="h-3 bg-gray-200 rounded animate-pulse w-2/3"></div>
@@ -283,26 +262,16 @@ const MediaField: React.FC<MediaFieldProps> = ({
 
     if (!data) {
       return (
-        <div
-          key={id}
-          className="relative border border-red-300 rounded-lg p-2 bg-red-50"
-        >
+        <div key={id} className="relative border border-red-300 rounded-lg p-2 bg-red-50">
           <div className="flex items-center space-x-3">
             <div className="w-16 h-16 bg-red-200 rounded flex items-center justify-center">
               <Cross2Icon className="w-6 h-6 text-red-400" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-red-900">
-                Media not found
-              </p>
+              <p className="text-sm font-medium text-red-900">Media not found</p>
               <p className="text-sm text-red-600">ID: {id}</p>
             </div>
-            <button
-              type="button"
-              onClick={() => removeMedia(index)}
-              className="p-1 text-red-500 hover:text-red-700"
-              title="Remove media"
-            >
+            <button type="button" onClick={() => removeMedia(index)} className="p-1 text-red-500 hover:text-red-700" title="Remove media">
               <Cross2Icon className="w-4 h-4" />
             </button>
           </div>
@@ -314,30 +283,17 @@ const MediaField: React.FC<MediaFieldProps> = ({
     const isAudio = isAudioFile(data);
 
     return (
-      <div
-        key={id}
-        className="relative group border border-gray-300 rounded-lg p-2 bg-gray-50"
-      >
+      <div key={id} className="relative group border border-gray-300 rounded-lg p-2 bg-gray-50">
         <div className="flex items-center space-x-3">
           {isImage && data.url ? (
-            <img
-              src={data.url}
-              alt={data.alt || data.filename}
-              className="w-16 h-16 object-cover rounded"
-            />
+            <img src={data.url} alt={data.alt || data.filename} className="w-16 h-16 object-cover rounded" />
           ) : isVideo && data.url ? (
             <div
               className="relative w-16 h-16 rounded overflow-hidden group cursor-pointer"
               onClick={() => handlePreview(data.url)}
               title="Click to preview video"
             >
-              <video
-                src={data.url}
-                className="w-full h-full object-cover"
-                preload="metadata"
-                muted
-                poster={data.url + "#t=0.5"}
-              />
+              <video src={data.url} className="w-full h-full object-cover" preload="metadata" muted poster={data.url + "#t=0.5"} />
               <div className="absolute inset-0 bg-black bg-opacity-40 flex items-center justify-center transition-opacity group-hover:bg-opacity-50">
                 <div className="w-6 h-6 bg-white bg-opacity-90 rounded-full flex items-center justify-center">
                   <PlayIcon className="w-3 h-3 text-gray-800 ml-0.5" />
@@ -360,20 +316,12 @@ const MediaField: React.FC<MediaFieldProps> = ({
               </div>
             </div>
           ) : (
-            <div className="w-16 h-16 bg-gray-200 rounded flex items-center justify-center">
-              {getMediaIcon(data)}
-            </div>
+            <div className="w-16 h-16 bg-gray-200 rounded flex items-center justify-center">{getMediaIcon(data)}</div>
           )}
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-gray-900 truncate">
-              {data.title || data.filename}
-            </p>{" "}
+            <p className="text-sm font-medium text-gray-900 truncate">{data.title || data.filename}</p>{" "}
             <p className="text-sm text-gray-500 truncate">{data.filename}</p>{" "}
-            {(isVideo || isImage || isAudio) && (
-              <p className="text-xs text-blue-600">
-                {getFileTypeDisplay(data)}
-              </p>
-            )}
+            {(isVideo || isImage || isAudio) && <p className="text-xs text-blue-600">{getFileTypeDisplay(data)}</p>}
           </div>
           <button
             type="button"
@@ -397,11 +345,7 @@ const MediaField: React.FC<MediaFieldProps> = ({
 
   return (
     <div className="space-y-3">
-      {displayIds.length > 0 && (
-        <div className="space-y-2">
-          {displayIds.map((id, index) => renderMediaPreview(id, index))}
-        </div>
-      )}{" "}
+      {displayIds.length > 0 && <div className="space-y-2">{displayIds.map((id, index) => renderMediaPreview(id, index))}</div>}{" "}
       <button
         type="button"
         onClick={openMediaLibrary}
@@ -441,22 +385,10 @@ const MediaField: React.FC<MediaFieldProps> = ({
             >
               <Cross2Icon className="w-4 h-4" />
             </button>
-            {previewUrl.match(
-              /\.(mp4|webm|ogg|avi|mov|wmv|flv|mkv|m4v|3gp|ogv)$/i
-            ) ? (
-              <video
-                src={previewUrl}
-                controls
-                autoPlay
-                className="max-w-full max-h-full rounded-lg"
-              />
+            {previewUrl.match(/\.(mp4|webm|ogg|avi|mov|wmv|flv|mkv|m4v|3gp|ogv)$/i) ? (
+              <video src={previewUrl} controls autoPlay className="max-w-full max-h-full rounded-lg" />
             ) : (
-              <audio
-                src={previewUrl}
-                controls
-                autoPlay
-                className="w-full max-w-md rounded-lg bg-white p-4"
-              />
+              <audio src={previewUrl} controls autoPlay className="w-full max-w-md rounded-lg bg-white p-4" />
             )}
           </div>
         </div>
@@ -464,6 +396,15 @@ const MediaField: React.FC<MediaFieldProps> = ({
     </div>
   );
 };
+
+interface Product {
+  id: number;
+  name: string;
+  slug: string;
+  type: string;
+  price: string;
+  image: string[] | null;
+}
 
 interface FieldOption {
   label: string;
@@ -485,14 +426,16 @@ export interface DynamicField {
   placeholder?: string;
   multiple?: boolean;
   media_type?: string;
+  validation?: Record<string, any> | null;
   meta_field?: boolean;
 }
 
 interface DynamicFieldRendererProps {
   field: DynamicField;
-  value: any;
-  onChange: (fieldId: string, isMeta: boolean | undefined, value: any) => void;
-  formApi?: FormApi<any, any>;
+  asyncOptions?: boolean;
+  // value: any;
+  // onChange: (fieldId: string, isMeta: boolean | undefined, value: any) => void;
+  formApi: FormApi<any, any>;
   validationRules?: {
     required?: boolean;
     minLength?: number;
@@ -506,154 +449,134 @@ interface DynamicFieldRendererProps {
 
 export const DynamicFieldRenderer: React.FC<DynamicFieldRendererProps> = ({
   field,
-  value,
-  onChange,
+  //   value,
+  //   onChange,
+  asyncOptions,
   formApi,
   validationRules,
 }) => {
-  // Create a form instance for this field
-  //   const form = useForm({
-  //     defaultValues: {
-  //       [field.id]: value || getDefaultValue(field),
-  //     },
-  //     onSubmit: async ({value: formValue}) => {
-  //       // This won't typically be called since we're handling changes immediately
-  //       onChange(field.id, field.meta_field, formValue[field.id]);
-  //     },
-  //   });
-  const handleChange = (newValue: any) => {
-    onChange(field.id, field.meta_field, newValue);
-  };
-
-  // Helper function to get default value based on field type
-  function getDefaultValue(field: DynamicField) {
-    switch (field.type) {
-      case "checkbox":
-        return field.options ? [] : false;
-      case "range":
-        return field.min || 0;
-      case "select":
-        return "";
-      case "media":
-        return field.multiple ? [] : null;
-      default:
-        return "";
-    }
-  }
-
-  // Update form when external value changes
-  //   useEffect(() => {
-  //     form.setFieldValue(field.id, value || getDefaultValue(field));
-  //   }, [value, field.id, field.type]);
-
+  const { get } = useAPI();
+  const validateField = useFieldValidation(field, validationRules);
   // Validation function
-  const validateField = useCallback(
-    (fieldValue: any) => {
-      const errors: string[] = [];
+  //   const validateField = useCallback(
+  //     (fieldValue: any) => {
+  //       const errors: string[] = [];
+  //       console.log(fieldValue, validationRules);
+  //       const actualValue = fieldValue.value;
+  //       // Built-in required validation
+  //       if (
+  //         validationRules?.required &&
+  //         (!actualValue ||
+  //           actualValue === "" ||
+  //           (Array.isArray(actualValue) && actualValue.length === 0))
+  //       ) {
+  //         console.log("PUSH ERROR");
+  //         errors.push(`${field.title} is required`);
+  //       }
 
-      // Built-in required validation
-      if (
-        field.required &&
-        (!fieldValue ||
-          fieldValue === "" ||
-          (Array.isArray(fieldValue) && fieldValue.length === 0))
-      ) {
-        errors.push(`${field.title} is required`);
-      }
+  //       // Custom validation rules
+  //       if (validationRules) {
+  //         if (
+  //           validationRules.minLength &&
+  //           typeof actualValue === "string" &&
+  //           actualValue.length < validationRules.minLength
+  //         ) {
+  //           errors.push(
+  //             `${field.title} must be at least ${validationRules.minLength} characters`
+  //           );
+  //         }
 
-      // Custom validation rules
-      if (validationRules) {
-        if (
-          validationRules.minLength &&
-          typeof fieldValue === "string" &&
-          fieldValue.length < validationRules.minLength
-        ) {
-          errors.push(
-            `${field.title} must be at least ${validationRules.minLength} characters`
-          );
-        }
+  //         if (
+  //           validationRules.maxLength &&
+  //           typeof actualValue === "string" &&
+  //           actualValue.length > validationRules.maxLength
+  //         ) {
+  //           errors.push(
+  //             `${field.title} must not exceed ${validationRules.maxLength} characters`
+  //           );
+  //         }
 
-        if (
-          validationRules.maxLength &&
-          typeof fieldValue === "string" &&
-          fieldValue.length > validationRules.maxLength
-        ) {
-          errors.push(
-            `${field.title} must not exceed ${validationRules.maxLength} characters`
-          );
-        }
+  //         if (
+  //           validationRules.min !== undefined &&
+  //           typeof actualValue === "number" &&
+  //           actualValue < validationRules.min
+  //         ) {
+  //           errors.push(`${field.title} must be at least ${validationRules.min}`);
+  //         }
 
-        if (
-          validationRules.min !== undefined &&
-          typeof fieldValue === "number" &&
-          fieldValue < validationRules.min
-        ) {
-          errors.push(`${field.title} must be at least ${validationRules.min}`);
-        }
+  //         if (
+  //           validationRules.max !== undefined &&
+  //           typeof actualValue === "number" &&
+  //           actualValue > validationRules.max
+  //         ) {
+  //           errors.push(`${field.title} must not exceed ${validationRules.max}`);
+  //         }
 
-        if (
-          validationRules.max !== undefined &&
-          typeof fieldValue === "number" &&
-          fieldValue > validationRules.max
-        ) {
-          errors.push(`${field.title} must not exceed ${validationRules.max}`);
-        }
+  //         if (validationRules.pattern) {
+  //           if (typeof validationRules.pattern === "string") {
+  //             const patternString = validationRules.pattern.slice(1, -1);
 
-        if (
-          validationRules.pattern &&
-          typeof fieldValue === "string" &&
-          !validationRules.pattern.test(fieldValue)
-        ) {
-          errors.push(`${field.title} format is invalid`);
-        }
+  //             // 2. Create a new RegExp object from the cleaned string.
+  //             validationRules.pattern = new RegExp(patternString);
+  //           }
+  //         }
+  //         if (
+  //           validationRules.pattern &&
+  //           actualValue !== "" &&
+  //           !validationRules.pattern.test(actualValue)
+  //         ) {
+  //           errors.push(`${field.title} format is invalid`);
+  //         }
 
-        if (validationRules.custom) {
-          const customError = validationRules.custom(fieldValue);
-          if (customError) {
-            errors.push(customError);
-          }
-        }
-      }
-
-      return errors.length > 0 ? errors[0] : undefined;
-    },
-    [field, validationRules]
-  );
+  //         if (validationRules.custom) {
+  //           const customError = validationRules.custom(actualValue);
+  //           if (customError) {
+  //             errors.push(customError);
+  //           }
+  //         }
+  //       }
+  //       console.log("errors", errors);
+  //       return errors.length > 0 ? errors[0] : undefined;
+  //     },
+  //     [field, validationRules]
+  //   );
 
   //   console.log(field, value);
 
+  // Fetch products for selection
+  const { data: productsData, isLoading: isLoadingProducts } = useQuery({
+    queryKey: ["products"],
+    queryFn: () => get("/products?per_page=50"),
+    enabled: asyncOptions && field.type === "product_select" && !field.value, // Only fetch if no specific product is set
+  });
+
+  const products: Product[] = productsData?.products || [];
+
   const renderField = () => {
-    // If form instance is provided, use TanStack Form
-    if (formApi) {
-      return (
-        <formApi.Field
-          name={field.id}
-          validators={{
-            onChange: validateField,
-            onBlur: validateField,
-          }}
-        >
-          {(fieldApi) => {
-            const handleFieldChange = (newValue: any) => {
-              fieldApi.handleChange(newValue);
-              // Trigger parent onChange for immediate updates
-              onChange(field.id, field.meta_field, newValue);
-            };
-
-            return renderFieldInput(
-              fieldApi.state.value,
-              handleFieldChange,
-              fieldApi.handleBlur,
-              fieldApi.state.meta.errors
-            );
-          }}
-        </formApi.Field>
-      );
-    }
-
-    // Fallback to controlled components without TanStack Form
-    return renderFieldInput(value, (newValue: any) =>
-      onChange(field.id, field.meta_field, newValue)
+    // The component now relies solely on TanStack Form
+    return (
+      <formApi.Field
+        name={field.id}
+        // validatorAdapter={myValidator()}
+        // The validators will run on change and blur, powered by TanStack Form
+        validators={{
+          onChange: validateField,
+          onMount: validateField, // Validate on mount to ensure initial value is valid
+          // onBlur: validateField,
+        }}
+      >
+        {(fieldApi) => {
+          // fieldApi provides everything: value, errors, and the change handler.
+          // This is the clean, single-source-of-truth approach.
+          return renderFieldInput(
+            fieldApi.state.value,
+            fieldApi.handleChange, // Use the built-in handleChange
+            fieldApi.handleBlur,
+            fieldApi.state.meta.errors,
+            fieldApi.state.meta.isTouched,
+          );
+        }}
+      </formApi.Field>
     );
   };
 
@@ -661,8 +584,10 @@ export const DynamicFieldRenderer: React.FC<DynamicFieldRendererProps> = ({
     currentValue: any,
     handleChange: (value: any) => void,
     handleBlur?: () => void,
-    errors?: string[]
+    errors?: string[],
+    isTouched: boolean,
   ) => {
+    const showErrors = isTouched && errors && errors.length > 0;
     switch (field.type) {
       case "text":
         return (
@@ -675,11 +600,7 @@ export const DynamicFieldRenderer: React.FC<DynamicFieldRendererProps> = ({
               placeholder={field.placeholder}
               className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
             />
-            {errors && errors.length > 0 && (
-              <div className="mt-1 text-sm text-red-600">
-                {errors.join(", ")}
-              </div>
-            )}
+            {showErrors && <div className="mt-1 text-sm text-red-600">{errors.join(", ")}</div>}
           </div>
         );
 
@@ -694,36 +615,27 @@ export const DynamicFieldRenderer: React.FC<DynamicFieldRendererProps> = ({
               placeholder={field.placeholder}
               className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
             />
-            {errors && errors.length > 0 && (
-              <div className="mt-1 text-sm text-red-600">
-                {errors.join(", ")}
-              </div>
-            )}
+            {showErrors && <div className="mt-1 text-sm text-red-600">{errors.join(", ")}</div>}
           </div>
         );
 
       case "select":
         return (
           <div>
-            <select
-              value={currentValue || ""}
-              onChange={(e) => handleChange(e.target.value)}
-              onBlur={handleBlur}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-            >
-              <option value="">Select an option</option>
-              {field.options &&
-                Object.entries(field.options).map(([optionValue, option]) => (
-                  <option key={optionValue} value={optionValue}>
-                    {option.label}
-                  </option>
-                ))}
-            </select>
-            {errors && errors.length > 0 && (
-              <div className="mt-1 text-sm text-red-600">
-                {errors.join(", ")}
-              </div>
-            )}
+            <Select value={currentValue || ""} onValueChange={(value) => handleChange(value)}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder={field.placeholder || "Choose a status..."} />
+              </SelectTrigger>
+              <SelectContent>
+                {field.options &&
+                  Object.entries(field.options).map(([optionValue, option]) => (
+                    <SelectItem key={optionValue} value={optionValue}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+            {showErrors && <div className="mt-1 text-sm text-red-600">{errors.join(", ")}</div>}
           </div>
         );
 
@@ -749,41 +661,25 @@ export const DynamicFieldRenderer: React.FC<DynamicFieldRendererProps> = ({
                       {[1, 2, 3, 4, 5].map((star) => (
                         <StarIcon
                           key={star}
-                          className={`w-4 h-4 ${
-                            star <= (currentValue || 0)
-                              ? "text-yellow-400 fill-current"
-                              : "text-gray-300"
-                          }`}
+                          className={`w-4 h-4 ${star <= (currentValue || 0) ? "text-yellow-400 fill-current" : "text-gray-300"}`}
                         />
                       ))}
-                      <span className="ml-2 text-sm font-medium">
-                        {currentValue || 0}
-                      </span>
+                      <span className="ml-2 text-sm font-medium">{currentValue || 0}</span>
                     </>
                   )}
-                  {field.id !== "review_rating" && (
-                    <span className="text-sm font-medium">
-                      {currentValue || 0}
-                    </span>
-                  )}
+                  {field.id !== "review_rating" && <span className="text-sm font-medium">{currentValue || 0}</span>}
                 </div>
-                <span className="text-sm text-gray-500">
-                  {field.max || 100}
-                </span>
+                <span className="text-sm text-gray-500">{field.max || 100}</span>
               </div>
             </div>
-            {errors && errors.length > 0 && (
-              <div className="mt-1 text-sm text-red-600">
-                {errors.join(", ")}
-              </div>
-            )}
+            {showErrors && <div className="mt-1 text-sm text-red-600">{errors.join(", ")}</div>}
           </div>
         );
       case "datetime":
         return (
           <input
             type="datetime-local"
-            value={value ? new Date(value).toISOString().slice(0, 16) : ""}
+            value={currentValue ? new Date(currentValue).toISOString().slice(0, 16) : ""}
             onChange={(e) => handleChange(e.target.value)}
             className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
           />
@@ -792,9 +688,7 @@ export const DynamicFieldRenderer: React.FC<DynamicFieldRendererProps> = ({
       case "checkbox":
         if (field.options) {
           // Multiple checkboxes
-          const selectedValues = Array.isArray(currentValue)
-            ? currentValue
-            : [];
+          const selectedValues = Array.isArray(currentValue) ? currentValue : [];
           return (
             <div>
               <div className="space-y-2">
@@ -816,11 +710,7 @@ export const DynamicFieldRenderer: React.FC<DynamicFieldRendererProps> = ({
                   </label>
                 ))}
               </div>
-              {errors && errors.length > 0 && (
-                <div className="mt-1 text-sm text-red-600">
-                  {errors.join(", ")}
-                </div>
-              )}
+              {showErrors && <div className="mt-1 text-sm text-red-600">{errors.join(", ")}</div>}
             </div>
           );
         } else {
@@ -837,11 +727,7 @@ export const DynamicFieldRenderer: React.FC<DynamicFieldRendererProps> = ({
                 />
                 <span className="ml-2">{field.title}</span>
               </label>
-              {errors && errors.length > 0 && (
-                <div className="mt-1 text-sm text-red-600">
-                  {errors.join(", ")}
-                </div>
-              )}
+              {showErrors && <div className="mt-1 text-sm text-red-600">{errors.join(", ")}</div>}
             </div>
           );
         }
@@ -855,7 +741,7 @@ export const DynamicFieldRenderer: React.FC<DynamicFieldRendererProps> = ({
                     type="radio"
                     name={field.id}
                     value={optionValue}
-                    checked={value === optionValue}
+                    checked={currentValue === optionValue}
                     onChange={(e) => handleChange(e.target.value)}
                     className="border-gray-300 text-primary-600 shadow-sm focus:border-primary-300 focus:ring focus:ring-primary-200 focus:ring-opacity-50"
                   />
@@ -869,14 +755,14 @@ export const DynamicFieldRenderer: React.FC<DynamicFieldRendererProps> = ({
         return (
           <button
             type="button"
-            onClick={() => handleChange(!value)}
+            onClick={() => handleChange(!currentValue)}
             className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-              value ? "bg-primary-600" : "bg-gray-200"
+              currentValue ? "bg-primary-600" : "bg-gray-200"
             }`}
           >
             <span
               className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                value ? "translate-x-6" : "translate-x-1"
+                currentValue ? "translate-x-6" : "translate-x-1"
               }`}
             />
           </button>
@@ -885,26 +771,56 @@ export const DynamicFieldRenderer: React.FC<DynamicFieldRendererProps> = ({
       case "media":
         return (
           <div>
-            <MediaField
-              value={currentValue}
-              onChange={handleChange}
-              multiple={field.multiple}
-              mediaType={field.media_type}
-            />
-            {errors && errors.length > 0 && (
-              <div className="mt-1 text-sm text-red-600">
-                {errors.join(", ")}
-              </div>
-            )}
+            <MediaField value={currentValue} onChange={handleChange} multiple={field.multiple} mediaType={field.media_type} />
+            {showErrors && <div className="mt-1 text-sm text-red-600">{errors.join(", ")}</div>}
+          </div>
+        );
+
+      case "product_select":
+        return (
+          <div className="space-y-2">
+            <SelectRadix.Root value={currentValue || ""} onValueChange={(value) => handleChange(value)}>
+              <SelectRadix.Trigger className="w-full flex items-center justify-between px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                <SelectRadix.Value placeholder={field.placeholder || "Select"} />
+                <SelectRadix.Icon>
+                  <ChevronDownIcon />
+                </SelectRadix.Icon>
+              </SelectRadix.Trigger>
+              <SelectRadix.Portal>
+                <SelectRadix.Content className="bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-y-auto z-50">
+                  <SelectRadix.Viewport>
+                    {isLoadingProducts ? (
+                      <div className="p-4 text-center text-gray-500">Loading products...</div>
+                    ) : (
+                      products.map((product) => (
+                        <SelectRadix.Item
+                          key={product.id}
+                          value={product.id.toString()}
+                          className="flex items-center space-x-3 px-3 py-2 hover:bg-gray-50 cursor-pointer data-[highlighted]:bg-blue-50 data-[highlighted]:outline-none"
+                        >
+                          <SelectRadix.ItemText className="flex items-center space-x-3">
+                            {product.image && <img src={product.image[0]} alt={product.name} className="w-8 h-8 object-cover rounded" />}
+                            <div>
+                              <div className="font-medium">{product.name}</div>
+                              <div className="text-sm text-gray-500">${product.price}</div>
+                            </div>
+                          </SelectRadix.ItemText>
+                          <SelectRadix.ItemIndicator>
+                            <CheckIcon />
+                          </SelectRadix.ItemIndicator>
+                        </SelectRadix.Item>
+                      ))
+                    )}
+                  </SelectRadix.Viewport>
+                </SelectRadix.Content>
+              </SelectRadix.Portal>
+            </SelectRadix.Root>
+            {showErrors && <div className="mt-1 text-sm text-red-600">{errors.join(", ")}</div>}
           </div>
         );
 
       default:
-        return (
-          <div className="text-gray-500 italic">
-            Unsupported field type: {field.type}
-          </div>
-        );
+        return <div className="text-gray-500 italic">Unsupported field type: {field.type}</div>;
     }
   };
   return (
