@@ -49,7 +49,6 @@ class ComponentRegistry {
 		// Allow developers to register components
 		do_action( 'spider_boxes_register_components', $this );
 	}
-
 	/**
 	 * Register default component types
 	 */
@@ -57,19 +56,39 @@ class ComponentRegistry {
 		$default_types = array(
 			'accordion' => array(
 				'class'    => 'SpiderBoxes\\Components\\AccordionComponent',
+				'supports' => array( 'title', 'description', 'panes' ),
+				'children' => array( 'pane' ),
+				'category' => 'layout',
+			),
+			'pane'      => array(
+				'class'    => 'SpiderBoxes\\Components\\PaneComponent',
 				'supports' => array( 'title', 'description', 'fields', 'collapsed' ),
+				'parent'   => 'accordion',
+				'category' => 'layout',
+			),
+			'tabs'      => array(
+				'class'    => 'SpiderBoxes\\Components\\TabsComponent',
+				'supports' => array( 'title', 'tabs' ),
+				'children' => array( 'tab' ),
+				'category' => 'layout',
 			),
 			'tab'       => array(
 				'class'    => 'SpiderBoxes\\Components\\TabComponent',
 				'supports' => array( 'title', 'icon', 'fields', 'active' ),
+				'parent'   => 'tabs',
+				'category' => 'layout',
 			),
 			'row'       => array(
 				'class'    => 'SpiderBoxes\\Components\\RowComponent',
-				'supports' => array( 'columns', 'gap', 'align' ),
+				'supports' => array( 'title', 'columns', 'gap', 'align' ),
+				'children' => array( 'column' ),
+				'category' => 'layout',
 			),
 			'column'    => array(
 				'class'    => 'SpiderBoxes\\Components\\ColumnComponent',
 				'supports' => array( 'width', 'fields', 'align' ),
+				'parent'   => 'row',
+				'category' => 'layout',
 			),
 		);
 
@@ -154,6 +173,89 @@ class ComponentRegistry {
 		do_action( 'spider_boxes_component_registered', $id, $args );
 
 		return true;
+	}
+
+	/**
+	 * Create a component with default children
+	 *
+	 * @param string $type Component type.
+	 * @param string $id Component ID.
+	 * @param array  $args Component arguments.
+	 * @return bool
+	 */
+	public function create_component_with_defaults( $type, $id, $args = array() ) {
+		$component_type = $this->get_component_type( $type );
+
+		if ( ! $component_type ) {
+			return false;
+		}
+
+		// Set the component type
+		$args['type'] = $type;
+
+		// Create the main component
+		$result = $this->register_component( $id, $args );
+
+		if ( ! $result ) {
+			return false;
+		}
+
+		// Add default children if the component type supports them
+		if ( isset( $component_type['children'] ) && ! empty( $component_type['children'] ) ) {
+			$this->add_default_children( $type, $id, $component_type['children'] );
+		}
+
+		return true;
+	}
+
+	/**
+	 * Add default children to a component
+	 *
+	 * @param string $parent_type Parent component type.
+	 * @param string $parent_id Parent component ID.
+	 * @param array  $child_types Child component types.
+	 */
+	private function add_default_children( $parent_type, $parent_id, $child_types ) {
+		foreach ( $child_types as $child_type ) {
+			$child_id = $parent_id . '_' . $child_type . '_1';
+
+			$child_args = array(
+				'type'   => $child_type,
+				'parent' => $parent_id,
+				'title'  => $this->get_default_child_title( $child_type ),
+			);
+
+			// Add type-specific defaults
+			switch ( $child_type ) {
+				case 'pane':
+					$child_args['collapsed'] = false;
+					break;
+				case 'tab':
+					$child_args['active'] = true; // First tab is active
+					break;
+				case 'column':
+					$child_args['width'] = 'auto';
+					break;
+			}
+
+			$this->register_component( $child_id, $child_args );
+		}
+	}
+
+	/**
+	 * Get default title for child component
+	 *
+	 * @param string $child_type Child component type.
+	 * @return string
+	 */
+	private function get_default_child_title( $child_type ) {
+		$titles = array(
+			'pane'   => __( 'Pane 1', 'spider-boxes' ),
+			'tab'    => __( 'Tab 1', 'spider-boxes' ),
+			'column' => __( 'Column 1', 'spider-boxes' ),
+		);
+
+		return isset( $titles[ $child_type ] ) ? $titles[ $child_type ] : __( 'Item 1', 'spider-boxes' );
 	}
 
 	/**
@@ -249,5 +351,49 @@ class ComponentRegistry {
 	 */
 	public function component_exists( $id ) {
 		return $this->components->has( $id );
+	}
+
+	/**
+	 * Check if component type has children
+	 *
+	 * @param string $type Component type.
+	 * @return bool
+	 */
+	public function component_type_has_children( $type ) {
+		$component_type = $this->get_component_type( $type );
+		return $component_type && isset( $component_type['children'] ) && ! empty( $component_type['children'] );
+	}
+
+	/**
+	 * Check if component type is a child type
+	 *
+	 * @param string $type Component type.
+	 * @return bool
+	 */
+	public function component_type_is_child( $type ) {
+		$component_type = $this->get_component_type( $type );
+		return $component_type && isset( $component_type['parent'] );
+	}
+
+	/**
+	 * Get parent type for a child component type
+	 *
+	 * @param string $type Component type.
+	 * @return string|null
+	 */
+	public function get_parent_type( $type ) {
+		$component_type = $this->get_component_type( $type );
+		return $component_type && isset( $component_type['parent'] ) ? $component_type['parent'] : null;
+	}
+
+	/**
+	 * Get allowed child types for a component type
+	 *
+	 * @param string $type Component type.
+	 * @return array
+	 */
+	public function get_allowed_children( $type ) {
+		$component_type = $this->get_component_type( $type );
+		return $component_type && isset( $component_type['children'] ) ? $component_type['children'] : array();
 	}
 }

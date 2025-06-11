@@ -1,6 +1,6 @@
 <?php
 /**
- * Tab Component
+ * Single Tab Component
  *
  * @package SpiderBoxes\Components
  */
@@ -29,8 +29,8 @@ class TabComponent {
 	/**
 	 * Constructor
 	 *
-	 * @param string $id Component ID
-	 * @param array  $config Component configuration
+	 * @param string $id Component ID.
+	 * @param array  $config Component configuration.
 	 */
 	public function __construct( $id, $config = array() ) {
 		$this->id     = $id;
@@ -54,14 +54,13 @@ class TabComponent {
 	}
 
 	/**
-	 * Render component (individual tab)
+	 * Render component (individual tab content)
 	 *
-	 * @param array $values Field values
+	 * @param array $values Field values.
 	 * @return string
 	 */
 	public function render( $values = array() ) {
 		$title  = $this->config['title'];
-		$icon   = $this->config['icon'];
 		$fields = $this->config['fields'];
 		$active = $this->config['active'];
 		$class  = $this->config['class'];
@@ -118,8 +117,8 @@ class TabComponent {
 	/**
 	 * Render fields
 	 *
-	 * @param array $fields Field configurations
-	 * @param array $values Field values
+	 * @param array $fields Field configurations.
+	 * @param array $values Field values.
 	 * @return string
 	 */
 	private function render_fields( $fields, $values ) {
@@ -182,7 +181,7 @@ class TabComponent {
 	/**
 	 * Set active state
 	 *
-	 * @param bool $active Active state
+	 * @param bool $active Active state.
 	 */
 	public function set_active( $active ) {
 		$this->config['active'] = $active;

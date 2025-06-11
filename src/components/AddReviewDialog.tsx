@@ -80,8 +80,11 @@ export const AddReviewDialog: React.FC<AddReviewDialogProps> = ({ isOpen, onOpen
   // Create review mutation
   const createReviewMutation = useMutation({
     mutationFn: (data: ReviewFormData) => post("/reviews", data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["reviews"] });
+    onSuccess: (newReview) => {
+      console.log(`New review created:`, newReview);
+      queryClient.invalidateQueries({ queryKey: ["reviews"], exact: false });
+
+      form.reset();
       onOpenChange(false);
     },
     onError: (error: any) => {

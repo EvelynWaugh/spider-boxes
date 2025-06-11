@@ -12,6 +12,7 @@ use DI\ContainerBuilder;
 use SpiderBoxes\Admin\AdminPages;
 use SpiderBoxes\Core\FieldRegistry;
 use SpiderBoxes\Core\ComponentRegistry;
+use SpiderBoxes\Core\ComponentFactory;
 use SpiderBoxes\Core\SectionRegistry;
 use SpiderBoxes\API\RestRoutes;
 use SpiderBoxes\WooCommerce\ReviewsManager;
@@ -69,14 +70,13 @@ class SpiderBoxes {
 	 */
 	private function setup_container() {
 		$builder = new ContainerBuilder();
-
 		// Add definitions with both full class names and simple aliases
 		$builder->addDefinitions(
 			array(
 				// Full class names
-
 				FieldRegistry::class     => \DI\autowire(),
 				ComponentRegistry::class => \DI\autowire(),
+				ComponentFactory::class  => \DI\autowire(),
 				SectionRegistry::class   => \DI\autowire(),
 				AdminPages::class        => \DI\autowire(),
 				RestRoutes::class        => \DI\autowire(),
@@ -85,6 +85,7 @@ class SpiderBoxes {
 				// Simple aliases for easier access
 				'fieldRegistry'          => \DI\get( FieldRegistry::class ),
 				'componentRegistry'      => \DI\get( ComponentRegistry::class ),
+				'componentFactory'       => \DI\get( ComponentFactory::class ),
 				'sectionRegistry'        => \DI\get( SectionRegistry::class ),
 				'adminPages'             => \DI\get( AdminPages::class ),
 				'restRoutes'             => \DI\get( RestRoutes::class ),

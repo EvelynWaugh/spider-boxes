@@ -1,10 +1,10 @@
-import React, {useState} from "react";
-import {useQuery, useMutation, useQueryClient} from "@tanstack/react-query";
-import {motion, AnimatePresence} from "framer-motion";
-import {Button} from "./ui/Button";
-import {Dialog, DialogContent, DialogHeader, DialogTitle} from "./ui/Dialog";
-import {useAPI} from "../hooks/useAPI";
-import {FieldRenderer} from "./FieldRenderer";
+import React, { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { motion, AnimatePresence } from "framer-motion";
+import { Button } from "./ui/Button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/Dialog";
+import { useAPI } from "../hooks/useAPI";
+import { FieldRenderer } from "./FieldRenderer";
 
 interface Section {
   id: string;
@@ -13,34 +13,27 @@ interface Section {
   description?: string;
   context: string;
   screen?: string;
+  settings?: Record<string, any>;
+  components?: Record<string, any>;
+  sort_order?: number;
+  is_active?: boolean;
   capability: string;
-  priority: string;
-  config: Record<string, any>;
-  components?: Array<{
-    id: string;
-    type: string;
-    title: string;
-    config: Record<string, any>;
-  }>;
-  fields?: Array<{
-    id: string;
-    type: string;
-    label: string;
-    config: Record<string, any>;
-  }>;
+  created_at?: string;
+  updated_at?: string;
 }
 
 interface SectionType {
-  type: string;
-  label: string;
+  id: string;
+  name: string;
+  class_name: string;
+  category: string;
   description: string;
   supports: string[];
-  category: string;
 }
 
 export const SectionsManager: React.FC = () => {
   const queryClient = useQueryClient();
-  const {get, post, patch, del} = useAPI();
+  const { get, post, patch, del } = useAPI();
 
   const [selectedSection, setSelectedSection] = useState<Section | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -48,23 +41,31 @@ export const SectionsManager: React.FC = () => {
   const [sectionForm, setSectionForm] = useState<Partial<Section>>({});
 
   // Fetch sections
-  const {data: sections = [], isLoading: sectionsLoading} = useQuery({
+  const { data: sections = [], isLoading: sectionsLoading } = useQuery({
     queryKey: ["sections"],
     queryFn: () => get("/sections"),
   });
-
   // Fetch section types
-  const {data: sectionTypes = [], isLoading: typesLoading} = useQuery({
+  const { data: sectionTypesResponse = {}, isLoading: typesLoading } = useQuery({
     queryKey: ["section-types"],
     queryFn: () => get("/section-types"),
   });
 
+  // Extract section types from the response and convert to array format
+  const sectionTypes = Object.entries(sectionTypesResponse.section_types || {}).map(([id, type]: [string, any]) => ({
+    id,
+    name: type.class?.split("\\").pop() || id,
+    class_name: type.class || "",
+    category: type.category || "general",
+    description: type.description || "",
+    supports: type.supports || [],
+  }));
+
   // Create section mutation
   const createSectionMutation = useMutation({
-    mutationFn: (sectionData: Partial<Section>) =>
-      post("/sections", sectionData),
+    mutationFn: (sectionData: Partial<Section>) => post("/sections", sectionData),
     onSuccess: () => {
-      queryClient.invalidateQueries({queryKey: ["sections"]});
+      queryClient.invalidateQueries({ queryKey: ["sections"] });
       setIsDialogOpen(false);
       setSectionForm({});
     },
@@ -72,10 +73,9 @@ export const SectionsManager: React.FC = () => {
 
   // Update section mutation
   const updateSectionMutation = useMutation({
-    mutationFn: ({id, data}: {id: string; data: Partial<Section>}) =>
-      patch(`/sections/${id}`, data),
+    mutationFn: ({ id, data }: { id: string; data: Partial<Section> }) => patch(`/sections/${id}`, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({queryKey: ["sections"]});
+      queryClient.invalidateQueries({ queryKey: ["sections"] });
       setIsDialogOpen(false);
       setSelectedSection(null);
     },
@@ -85,10 +85,9 @@ export const SectionsManager: React.FC = () => {
   const deleteSectionMutation = useMutation({
     mutationFn: (id: string) => del(`/sections/${id}`),
     onSuccess: () => {
-      queryClient.invalidateQueries({queryKey: ["sections"]});
+      queryClient.invalidateQueries({ queryKey: ["sections"] });
     },
   });
-
   const handleCreateSection = () => {
     setIsCreateMode(true);
     setSectionForm({
@@ -98,10 +97,10 @@ export const SectionsManager: React.FC = () => {
       context: "default",
       screen: "",
       capability: "manage_options",
-      priority: "default",
-      config: {},
-      components: [],
-      fields: [],
+      settings: {},
+      components: {},
+      sort_order: 0,
+      is_active: true,
     });
     setIsDialogOpen(true);
   };
@@ -129,7 +128,6 @@ export const SectionsManager: React.FC = () => {
       deleteSectionMutation.mutate(id);
     }
   };
-
   const updateFormField = (field: string, value: any) => {
     setSectionForm((prev) => ({
       ...prev,
@@ -137,11 +135,11 @@ export const SectionsManager: React.FC = () => {
     }));
   };
 
-  const updateFormConfig = (key: string, value: any) => {
+  const updateFormSettings = (key: string, value: any) => {
     setSectionForm((prev) => ({
       ...prev,
-      config: {
-        ...prev.config,
+      settings: {
+        ...prev.settings,
         [key]: value,
       },
     }));
@@ -174,53 +172,30 @@ export const SectionsManager: React.FC = () => {
           {sections.map((section: Section) => (
             <motion.div
               key={section.id}
-              initial={{opacity: 0, y: 20}}
-              animate={{opacity: 1, y: 0}}
-              exit={{opacity: 0, y: -20}}
-              transition={{duration: 0.2}}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.2 }}
               className="section-card"
             >
               <div className="section-card-header">
-                <div className="section-icon">
-                  {getSectionIcon(section.type)}
-                </div>
+                <div className="section-icon">{getSectionIcon(section.type)}</div>
                 <div className="section-info">
                   <h4 className="section-title">{section.title}</h4>
                   <p className="section-type">{section.type}</p>
-                  {section.description && (
-                    <p className="section-description">{section.description}</p>
-                  )}
+                  {section.description && <p className="section-description">{section.description}</p>}
                 </div>
-              </div>
-
+              </div>{" "}
               <div className="section-meta">
-                <span className="section-context">
-                  Context: {section.context}
-                </span>
-                <span className="section-capability">
-                  Capability: {section.capability}
-                </span>
-                <span className="section-component-count">
-                  {section.components?.length || 0} components
-                </span>
-                <span className="section-field-count">
-                  {section.fields?.length || 0} fields
-                </span>
+                <span className="section-context">Context: {section.context}</span>
+                <span className="section-capability">Capability: {section.capability}</span>
+                <span className="section-component-count">{Object.keys(section.components || {}).length} components</span>
               </div>
-
               <div className="section-actions">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleEditSection(section)}
-                >
+                <Button variant="outline" size="sm" onClick={() => handleEditSection(section)}>
                   Edit
                 </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleDeleteSection(section.id)}
-                >
+                <Button variant="outline" size="sm" onClick={() => handleDeleteSection(section.id)}>
                   Delete
                 </Button>
               </div>
@@ -233,9 +208,7 @@ export const SectionsManager: React.FC = () => {
         <div className="empty-state">
           <div className="empty-state-icon">📄</div>
           <h3 className="empty-state-title">No sections yet</h3>
-          <p className="empty-state-description">
-            Create your first section to get started.
-          </p>
+          <p className="empty-state-description">Create your first section to get started.</p>
           <Button onClick={handleCreateSection}>Create Section</Button>
         </div>
       )}
@@ -244,9 +217,7 @@ export const SectionsManager: React.FC = () => {
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent size="lg">
           <DialogHeader>
-            <DialogTitle>
-              {isCreateMode ? "Create Section" : "Edit Section"}
-            </DialogTitle>
+            <DialogTitle>{isCreateMode ? "Create Section" : "Edit Section"}</DialogTitle>
           </DialogHeader>
 
           <div className="section-form">
@@ -270,8 +241,8 @@ export const SectionsManager: React.FC = () => {
                   label: "Section Type",
                   required: true,
                   options: sectionTypes.map((type: SectionType) => ({
-                    label: type.label,
-                    value: type.type,
+                    label: type.name,
+                    value: type.id,
                   })),
                 }}
                 value={sectionForm.type || ""}
@@ -297,11 +268,11 @@ export const SectionsManager: React.FC = () => {
                   label: "Context",
                   required: true,
                   options: [
-                    {label: "Default", value: "default"},
-                    {label: "Post Edit", value: "post_edit"},
-                    {label: "User Profile", value: "user_profile"},
-                    {label: "Settings", value: "settings"},
-                    {label: "WooCommerce Product", value: "wc_product"},
+                    { label: "Default", value: "default" },
+                    { label: "Post Edit", value: "post_edit" },
+                    { label: "User Profile", value: "user_profile" },
+                    { label: "Settings", value: "settings" },
+                    { label: "WooCommerce Product", value: "wc_product" },
                   ],
                 }}
                 value={sectionForm.context || "default"}
@@ -327,38 +298,22 @@ export const SectionsManager: React.FC = () => {
                   label: "Required Capability",
                   required: true,
                   options: [
-                    {label: "Manage Options", value: "manage_options"},
-                    {label: "Edit Posts", value: "edit_posts"},
-                    {label: "Edit Pages", value: "edit_pages"},
-                    {label: "Edit Users", value: "edit_users"},
-                    {label: "Manage WooCommerce", value: "manage_woocommerce"},
+                    { label: "Manage Options", value: "manage_options" },
+                    { label: "Edit Posts", value: "edit_posts" },
+                    { label: "Edit Pages", value: "edit_pages" },
+                    { label: "Edit Users", value: "edit_users" },
+                    { label: "Manage WooCommerce", value: "manage_woocommerce" },
                   ],
                 }}
                 value={sectionForm.capability || "manage_options"}
                 onChange={(value) => updateFormField("capability", value)}
-              />
-
-              <FieldRenderer
-                config={{
-                  id: "priority",
-                  type: "select",
-                  label: "Priority",
-                  options: [
-                    {label: "High", value: "high"},
-                    {label: "Default", value: "default"},
-                    {label: "Low", value: "low"},
-                  ],
-                }}
-                value={sectionForm.priority || "default"}
-                onChange={(value) => updateFormField("priority", value)}
               />
             </div>
 
             {/* Section Type Specific Configuration */}
             {sectionForm.type && (
               <div className="section-config">
-                <h4 className="config-title">Section Configuration</h4>
-
+                <h4 className="config-title">Section Configuration</h4>{" "}
                 {sectionForm.type === "section" && (
                   <div className="config-grid">
                     <FieldRenderer
@@ -368,10 +323,8 @@ export const SectionsManager: React.FC = () => {
                         label: "Collapsible",
                         description: "Allow users to collapse this section",
                       }}
-                      value={sectionForm.config?.collapsible || false}
-                      onChange={(value) =>
-                        updateFormConfig("collapsible", value)
-                      }
+                      value={sectionForm.settings?.collapsible || false}
+                      onChange={(value) => updateFormSettings("collapsible", value)}
                     />
                     <FieldRenderer
                       config={{
@@ -380,12 +333,11 @@ export const SectionsManager: React.FC = () => {
                         label: "Start Collapsed",
                         description: "Start with the section collapsed",
                       }}
-                      value={sectionForm.config?.collapsed || false}
-                      onChange={(value) => updateFormConfig("collapsed", value)}
+                      value={sectionForm.settings?.collapsed || false}
+                      onChange={(value) => updateFormSettings("collapsed", value)}
                     />
                   </div>
                 )}
-
                 {sectionForm.type === "form" && (
                   <div className="config-grid">
                     <FieldRenderer
@@ -394,12 +346,12 @@ export const SectionsManager: React.FC = () => {
                         type: "select",
                         label: "Form Method",
                         options: [
-                          {label: "POST", value: "post"},
-                          {label: "GET", value: "get"},
+                          { label: "POST", value: "post" },
+                          { label: "GET", value: "get" },
                         ],
                       }}
-                      value={sectionForm.config?.method || "post"}
-                      onChange={(value) => updateFormConfig("method", value)}
+                      value={sectionForm.settings?.method || "post"}
+                      onChange={(value) => updateFormSettings("method", value)}
                     />
                     <FieldRenderer
                       config={{
@@ -408,8 +360,8 @@ export const SectionsManager: React.FC = () => {
                         label: "Form Action URL",
                         placeholder: "Leave empty for current page",
                       }}
-                      value={sectionForm.config?.action || ""}
-                      onChange={(value) => updateFormConfig("action", value)}
+                      value={sectionForm.settings?.action || ""}
+                      onChange={(value) => updateFormSettings("action", value)}
                     />
                     <FieldRenderer
                       config={{
@@ -418,8 +370,8 @@ export const SectionsManager: React.FC = () => {
                         label: "AJAX Submission",
                         description: "Submit form via AJAX",
                       }}
-                      value={sectionForm.config?.ajax || false}
-                      onChange={(value) => updateFormConfig("ajax", value)}
+                      value={sectionForm.settings?.ajax || false}
+                      onChange={(value) => updateFormSettings("ajax", value)}
                     />
                     <FieldRenderer
                       config={{
@@ -428,10 +380,8 @@ export const SectionsManager: React.FC = () => {
                         label: "Submit Button Text",
                         placeholder: "Submit",
                       }}
-                      value={sectionForm.config?.submit_text || "Submit"}
-                      onChange={(value) =>
-                        updateFormConfig("submit_text", value)
-                      }
+                      value={sectionForm.settings?.submit_text || "Submit"}
+                      onChange={(value) => updateFormSettings("submit_text", value)}
                     />
                     <FieldRenderer
                       config={{
@@ -440,10 +390,8 @@ export const SectionsManager: React.FC = () => {
                         label: "Nonce Action",
                         placeholder: "Enter nonce action for security",
                       }}
-                      value={sectionForm.config?.nonce_action || ""}
-                      onChange={(value) =>
-                        updateFormConfig("nonce_action", value)
-                      }
+                      value={sectionForm.settings?.nonce_action || ""}
+                      onChange={(value) => updateFormSettings("nonce_action", value)}
                     />
                   </div>
                 )}
@@ -454,13 +402,7 @@ export const SectionsManager: React.FC = () => {
               <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
                 Cancel
               </Button>{" "}
-              <Button
-                onClick={handleSaveSection}
-                disabled={
-                  createSectionMutation.isPending ||
-                  updateSectionMutation.isPending
-                }
-              >
+              <Button onClick={handleSaveSection} disabled={createSectionMutation.isPending || updateSectionMutation.isPending}>
                 {isCreateMode ? "Create Section" : "Save Changes"}
               </Button>
             </div>

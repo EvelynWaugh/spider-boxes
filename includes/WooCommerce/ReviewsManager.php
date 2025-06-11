@@ -714,6 +714,7 @@ class ReviewsManager {
 						'label' => esc_html__( 'Trash', 'spider-boxes' ),
 					),
 				),
+				'required'    => true,
 				'meta_field'  => false,
 				'context'     => 'review',
 			),
@@ -728,6 +729,10 @@ class ReviewsManager {
 				'min'         => 1,
 				'max'         => 5,
 				'step'        => 1,
+				'validation'  => array(
+					'min' => 1,
+					'max' => 5,
+				),
 				'meta_field'  => false, // Woocommerce required field.
 
 				'context'     => 'review',

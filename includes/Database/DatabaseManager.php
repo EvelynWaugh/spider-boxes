@@ -11,13 +11,12 @@ namespace SpiderBoxes\Database;
  * Handles database operations for Spider Boxes
  */
 class DatabaseManager {
-
 	/**
 	 * DB Version for custom tables
 	 *
 	 * @var string
 	 */
-	protected static $db_table_version = '1.0.4';
+	protected static $db_table_version = '1.1.0';
 
 	/**
 	 * Create custom database tables
@@ -55,8 +54,8 @@ class DatabaseManager {
 		) $charset_collate;";
 
 		// Field values/meta table for storing field data values.
-		$meta_table = $wpdb->prefix . 'spider_boxes_meta';
-		$meta_sql   = "CREATE TABLE $meta_table (
+		$meta_table        = $wpdb->prefix . 'spider_boxes_meta';
+		$meta_sql          = "CREATE TABLE $meta_table (
 			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
 			object_id bigint(20) unsigned NOT NULL,
 			object_type varchar(50) NOT NULL,
@@ -70,8 +69,7 @@ class DatabaseManager {
 			KEY object_type (object_type),
 			KEY meta_key (meta_key),
 			KEY context (context)
-		) $charset_collate;";
-		// Field types table for registered field types.
+		) $charset_collate;";       // Field types table for registered field types.
 		$field_types_table = $wpdb->prefix . 'spider_boxes_field_types';
 		$field_types_sql   = "CREATE TABLE $field_types_table (
 			id varchar(255) NOT NULL,
@@ -92,120 +90,64 @@ class DatabaseManager {
 			KEY sort_order (sort_order)
 		) $charset_collate;";
 
+		// Components table for component configurations.
+		$components_table = $wpdb->prefix . 'spider_boxes_components';
+		$components_sql   = "CREATE TABLE $components_table (
+			id varchar(255) NOT NULL,
+			type varchar(50) NOT NULL,
+			title varchar(255) NOT NULL,
+			description text,
+			parent_id varchar(255) DEFAULT '',
+			section_id varchar(255) DEFAULT '',
+			context varchar(50) DEFAULT 'default',
+			settings longtext,
+			children longtext,
+			sort_order int(11) DEFAULT 0,
+			is_active tinyint(1) DEFAULT 1,
+			capability varchar(100) DEFAULT 'manage_options',
+			created_at datetime DEFAULT CURRENT_TIMESTAMP,
+			updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+			PRIMARY KEY (id),
+			KEY type (type),
+			KEY parent_id (parent_id),
+			KEY section_id (section_id),
+			KEY context (context),
+			KEY sort_order (sort_order),
+			KEY is_active (is_active)
+		) $charset_collate;";
+
+		// Sections table for section configurations.
+		$sections_table = $wpdb->prefix . 'spider_boxes_sections';
+		$sections_sql   = "CREATE TABLE $sections_table (
+			id varchar(255) NOT NULL,
+			type varchar(50) NOT NULL,
+			title varchar(255) NOT NULL,
+			description text,
+			context varchar(50) DEFAULT 'default',
+			screen varchar(100) DEFAULT '',
+			settings longtext,
+			components longtext,
+			sort_order int(11) DEFAULT 0,
+			is_active tinyint(1) DEFAULT 1,
+			capability varchar(100) DEFAULT 'manage_options',
+			created_at datetime DEFAULT CURRENT_TIMESTAMP,
+			updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+			PRIMARY KEY (id),
+			KEY type (type),
+			KEY context (context),
+			KEY screen (screen),
+			KEY sort_order (sort_order),
+			KEY is_active (is_active)
+		) $charset_collate;";
 		if ( version_compare( $db_version, self::$db_table_version, '<' ) ) {
 			dbDelta( $fields_sql );
 			dbDelta( $meta_sql );
 			dbDelta( $field_types_sql );
+			dbDelta( $components_sql );
+			dbDelta( $sections_sql );
 			// Insert default field types.
-			self::insert_default_field_types();
-		}
-	}
 
-	/**
-	 * Insert default field types into database
-	 */
-	private static function insert_default_field_types() {
-		global $wpdb;
-
-		$field_types_table = $wpdb->prefix . 'spider_boxes_field_types';
-
-		// Default field types based on existing field classes.
-		$default_field_types = array(
-			array(
-				'id'          => 'text',
-				'name'        => 'Text Field',
-				'class_name'  => 'SpiderBoxes\\Fields\\TextField',
-				'category'    => 'basic',
-				'icon'        => 'text',
-				'description' => 'A simple text input field.',
-				'supports'    => wp_json_encode( array( 'placeholder', 'validation', 'default_value' ) ),
-				'sort_order'  => 1,
-			),
-			array(
-				'id'          => 'textarea',
-				'name'        => 'Textarea Field',
-				'class_name'  => 'SpiderBoxes\\Fields\\TextareaField',
-				'category'    => 'basic',
-				'icon'        => 'text',
-				'description' => 'A multi-line text input field.',
-				'supports'    => wp_json_encode( array( 'placeholder', 'rows', 'validation' ) ),
-				'sort_order'  => 2,
-			),
-			array(
-				'id'          => 'select',
-				'name'        => 'Select Field',
-				'class_name'  => 'SpiderBoxes\\Fields\\SelectField',
-				'category'    => 'choice',
-				'icon'        => 'chevron-down',
-				'description' => 'A dropdown select field.',
-				'supports'    => wp_json_encode( array( 'options', 'multiple', 'default_value' ) ),
-				'sort_order'  => 3,
-			),
-			array(
-				'id'          => 'radio',
-				'name'        => 'Radio Field',
-				'class_name'  => 'SpiderBoxes\\Fields\\RadioField',
-				'category'    => 'choice',
-				'icon'        => 'radiobutton',
-				'description' => 'Radio button group for single selection.',
-				'supports'    => wp_json_encode( array( 'options', 'default_value' ) ),
-				'sort_order'  => 4,
-			),
-			array(
-				'id'          => 'checkbox',
-				'name'        => 'Checkbox Field',
-				'class_name'  => 'SpiderBoxes\\Fields\\CheckboxField',
-				'category'    => 'choice',
-				'icon'        => 'checkbox',
-				'description' => 'Checkbox field for boolean or multiple selections.',
-				'supports'    => wp_json_encode( array( 'options', 'multiple', 'default_value' ) ),
-				'sort_order'  => 5,
-			),
-			array(
-				'id'          => 'switcher',
-				'name'        => 'Switcher Field',
-				'class_name'  => 'SpiderBoxes\\Fields\\SwitcherField',
-				'category'    => 'choice',
-				'icon'        => 'switch',
-				'description' => 'Toggle switch for boolean values.',
-				'supports'    => wp_json_encode( array( 'default_value', 'labels' ) ),
-				'sort_order'  => 6,
-			),
-			array(
-				'id'          => 'media',
-				'name'        => 'Media Field',
-				'class_name'  => 'SpiderBoxes\\Fields\\MediaField',
-				'category'    => 'media',
-				'icon'        => 'image',
-				'description' => 'Media upload field for files and images.',
-				'supports'    => wp_json_encode( array( 'multiple', 'mime_types', 'return_format' ) ),
-				'sort_order'  => 7,
-			),
-			array(
-				'id'          => 'wysiwyg',
-				'name'        => 'WYSIWYG Editor',
-				'class_name'  => 'SpiderBoxes\\Fields\\WysiwygField',
-				'category'    => 'content',
-				'icon'        => 'text',
-				'description' => 'Rich text editor field.',
-				'supports'    => wp_json_encode( array( 'media_buttons', 'teeny', 'editor_height' ) ),
-				'sort_order'  => 8,
-			),
-		);
-
-		// Insert each field type if it doesn't exist.
-		foreach ( $default_field_types as $field_type ) {
-			// Check if field type already exists.
-			$existing = $wpdb->get_var(
-				$wpdb->prepare(
-					"SELECT id FROM $field_types_table WHERE id = %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-					$field_type['id']
-				)
-			);
-
-			if ( ! $existing ) {
-				$wpdb->insert( $field_types_table, $field_type ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
-			}
+			update_option( 'spider_boxes_db_version', self::$db_table_version );
 		}
 	}
 
@@ -672,7 +614,339 @@ class DatabaseManager {
 				$sanitized[ $key ] = $value;
 			}
 		}
-
 		return $sanitized;
+	}
+
+	/**
+	 * Save component configuration to database
+	 *
+	 * @param string $component_id Component ID.
+	 * @param array  $component_config Component configuration.
+	 * @return bool Success status.
+	 */
+	public static function save_component_config( $component_id, $component_config ) {
+		global $wpdb;
+
+		$components_table = $wpdb->prefix . 'spider_boxes_components';
+
+		// Prepare data for insertion.
+		$data = array(
+			'id'          => $component_id,
+			'type'        => $component_config['type'],
+			'title'       => $component_config['title'],
+			'description' => $component_config['description'] ?? '',
+			'parent_id'   => $component_config['parent_id'] ?? '',
+			'section_id'  => $component_config['section_id'] ?? '',
+			'context'     => $component_config['context'] ?? 'default',
+			'settings'    => wp_json_encode( $component_config['settings'] ?? array() ),
+			'children'    => wp_json_encode( $component_config['children'] ?? array() ),
+			'sort_order'  => $component_config['sort_order'] ?? 0,
+			'is_active'   => $component_config['is_active'] ?? 1,
+			'capability'  => $component_config['capability'] ?? 'manage_options',
+		);
+
+		// Check if component exists.
+		$existing = $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT id FROM $components_table WHERE id = %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				$component_id
+			)
+		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
+
+		if ( $existing ) {
+			unset( $data['created_at'] );
+			$result = $wpdb->update(
+				$components_table,
+				$data,
+				array( 'id' => $component_id )
+			); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
+		} else {
+			$result = $wpdb->insert( $components_table, $data ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
+		}
+
+		return false !== $result;
+	}
+
+	/**
+	 * Get component configuration from database
+	 *
+	 * @param string $component_id Component ID.
+	 * @return array|null Component configuration or null if not found.
+	 */
+	public static function get_component_config( $component_id ) {
+		global $wpdb;
+
+		$components_table = $wpdb->prefix . 'spider_boxes_components';
+
+		$result = $wpdb->get_row(
+			$wpdb->prepare(
+				"SELECT * FROM $components_table WHERE id = %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				$component_id
+			),
+			ARRAY_A
+		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
+
+		if ( ! $result ) {
+			return null;
+		}
+
+		// Decode JSON settings and children.
+		$result['settings'] = json_decode( $result['settings'], true );
+		$result['children'] = json_decode( $result['children'], true );
+
+		return $result;
+	}
+
+	/**
+	 * Get all components from database
+	 *
+	 * @param string $parent_id Optional parent ID to filter by.
+	 * @param string $section_id Optional section ID to filter by.
+	 * @param string $context Optional context to filter by.
+	 * @return array Array of component configurations.
+	 */
+	public static function get_all_components( $parent_id = '', $section_id = '', $context = '' ) {
+		global $wpdb;
+
+		$components_table = $wpdb->prefix . 'spider_boxes_components';
+
+		$where_conditions = array();
+		$prepare_values   = array();
+
+		if ( ! empty( $parent_id ) ) {
+			$where_conditions[] = 'parent_id = %s';
+			$prepare_values[]   = $parent_id;
+		}
+
+		if ( ! empty( $section_id ) ) {
+			$where_conditions[] = 'section_id = %s';
+			$prepare_values[]   = $section_id;
+		}
+
+		if ( ! empty( $context ) ) {
+			$where_conditions[] = 'context = %s';
+			$prepare_values[]   = $context;
+		}
+
+		$where_clause = '';
+		if ( ! empty( $where_conditions ) ) {
+			$where_clause = 'WHERE ' . implode( ' AND ', $where_conditions );
+		}
+
+		$sql = "SELECT * FROM $components_table $where_clause ORDER BY sort_order ASC, created_at ASC"; // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+
+		if ( ! empty( $prepare_values ) ) {
+			$sql = $wpdb->prepare( $sql, $prepare_values ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		}
+
+		$results = $wpdb->get_results( $sql, ARRAY_A ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.PreparedSQL.NotPrepared
+
+		if ( ! $results ) {
+			return array();
+		}
+
+		// Decode JSON settings and children for each component.
+		foreach ( $results as &$component ) {
+			$component['settings'] = json_decode( $component['settings'], true );
+			$component['children'] = json_decode( $component['children'], true );
+		}
+
+		return $results;
+	}
+
+	/**
+	 * Delete component configuration from database
+	 *
+	 * @param string $component_id Component ID.
+	 * @return bool Success status.
+	 */
+	public static function delete_component_config( $component_id ) {
+		global $wpdb;
+
+		$components_table = $wpdb->prefix . 'spider_boxes_components';
+
+		// Check if component exists.
+		$existing = $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT id FROM $components_table WHERE id = %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				$component_id
+			)
+		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
+
+		if ( ! $existing ) {
+			return false;
+		}
+
+		// Delete the component configuration.
+		$result = $wpdb->delete(
+			$components_table,
+			array( 'id' => $component_id ),
+			array( '%s' )
+		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
+
+		return false !== $result;
+	}
+
+	/**
+	 * Save section configuration to database
+	 *
+	 * @param string $section_id Section ID.
+	 * @param array  $section_config Section configuration.
+	 * @return bool Success status.
+	 */
+	public static function save_section_config( $section_id, $section_config ) {
+		global $wpdb;
+
+		$sections_table = $wpdb->prefix . 'spider_boxes_sections';
+
+		// Prepare data for insertion.
+		$data = array(
+			'id'          => $section_id,
+			'type'        => $section_config['type'],
+			'title'       => $section_config['title'],
+			'description' => $section_config['description'] ?? '',
+			'context'     => $section_config['context'] ?? 'default',
+			'screen'      => $section_config['screen'] ?? '',
+			'settings'    => wp_json_encode( $section_config['settings'] ?? array() ),
+			'components'  => wp_json_encode( $section_config['components'] ?? array() ),
+			'sort_order'  => $section_config['sort_order'] ?? 0,
+			'is_active'   => $section_config['is_active'] ?? 1,
+			'capability'  => $section_config['capability'] ?? 'manage_options',
+		);
+
+		// Check if section exists.
+		$existing = $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT id FROM $sections_table WHERE id = %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				$section_id
+			)
+		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
+
+		if ( $existing ) {
+			unset( $data['created_at'] );
+			$result = $wpdb->update(
+				$sections_table,
+				$data,
+				array( 'id' => $section_id )
+			); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
+		} else {
+			$result = $wpdb->insert( $sections_table, $data ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
+		}
+
+		return false !== $result;
+	}
+
+	/**
+	 * Get section configuration from database
+	 *
+	 * @param string $section_id Section ID.
+	 * @return array|null Section configuration or null if not found.
+	 */
+	public static function get_section_config( $section_id ) {
+		global $wpdb;
+
+		$sections_table = $wpdb->prefix . 'spider_boxes_sections';
+
+		$result = $wpdb->get_row(
+			$wpdb->prepare(
+				"SELECT * FROM $sections_table WHERE id = %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				$section_id
+			),
+			ARRAY_A
+		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
+
+		if ( ! $result ) {
+			return null;
+		}
+
+		// Decode JSON settings and components.
+		$result['settings']   = json_decode( $result['settings'], true );
+		$result['components'] = json_decode( $result['components'], true );
+
+		return $result;
+	}
+
+	/**
+	 * Get all sections from database
+	 *
+	 * @param string $context Optional context to filter by.
+	 * @param string $screen Optional screen to filter by.
+	 * @return array Array of section configurations.
+	 */
+	public static function get_all_sections( $context = '', $screen = '' ) {
+		global $wpdb;
+
+		$sections_table = $wpdb->prefix . 'spider_boxes_sections';
+
+		$where_conditions = array();
+		$prepare_values   = array();
+
+		if ( ! empty( $context ) ) {
+			$where_conditions[] = 'context = %s';
+			$prepare_values[]   = $context;
+		}
+
+		if ( ! empty( $screen ) ) {
+			$where_conditions[] = 'screen = %s';
+			$prepare_values[]   = $screen;
+		}
+
+		$where_clause = '';
+		if ( ! empty( $where_conditions ) ) {
+			$where_clause = 'WHERE ' . implode( ' AND ', $where_conditions );
+		}
+
+		$sql = "SELECT * FROM $sections_table $where_clause ORDER BY sort_order ASC, created_at ASC"; // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+
+		if ( ! empty( $prepare_values ) ) {
+			$sql = $wpdb->prepare( $sql, $prepare_values ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		}
+
+		$results = $wpdb->get_results( $sql, ARRAY_A ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.PreparedSQL.NotPrepared
+
+		if ( ! $results ) {
+			return array();
+		}
+
+		// Decode JSON settings and components for each section.
+		foreach ( $results as &$section ) {
+			$section['settings']   = json_decode( $section['settings'], true );
+			$section['components'] = json_decode( $section['components'], true );
+		}
+
+		return $results;
+	}
+
+	/**
+	 * Delete section configuration from database
+	 *
+	 * @param string $section_id Section ID.
+	 * @return bool Success status.
+	 */
+	public static function delete_section_config( $section_id ) {
+		global $wpdb;
+
+		$sections_table = $wpdb->prefix . 'spider_boxes_sections';
+
+		// Check if section exists.
+		$existing = $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT id FROM $sections_table WHERE id = %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				$section_id
+			)
+		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
+
+		if ( ! $existing ) {
+			return false;
+		}
+
+		// Delete the section configuration.
+		$result = $wpdb->delete(
+			$sections_table,
+			array( 'id' => $section_id ),
+			array( '%s' )
+		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
+
+		return false !== $result;
 	}
 }

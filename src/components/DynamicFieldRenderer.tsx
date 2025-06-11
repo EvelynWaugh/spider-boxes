@@ -656,7 +656,7 @@ export const DynamicFieldRenderer: React.FC<DynamicFieldRendererProps> = ({
               <div className="flex justify-between items-center">
                 <span className="text-sm text-gray-500">{field.min || 0}</span>
                 <div className="flex items-center space-x-1">
-                  {field.id === "review_rating" && (
+                  {field.id === "rating" && (
                     <>
                       {[1, 2, 3, 4, 5].map((star) => (
                         <StarIcon
@@ -664,10 +664,10 @@ export const DynamicFieldRenderer: React.FC<DynamicFieldRendererProps> = ({
                           className={`w-4 h-4 ${star <= (currentValue || 0) ? "text-yellow-400 fill-current" : "text-gray-300"}`}
                         />
                       ))}
-                      <span className="ml-2 text-sm font-medium">{currentValue || 0}</span>
+                      <span className="ml-2 text-sm font-medium">{currentValue || field.min || 0}</span>
                     </>
                   )}
-                  {field.id !== "review_rating" && <span className="text-sm font-medium">{currentValue || 0}</span>}
+                  {field.id !== "rating" && <span className="text-sm font-medium">{currentValue || field.min || 0}</span>}
                 </div>
                 <span className="text-sm text-gray-500">{field.max || 100}</span>
               </div>

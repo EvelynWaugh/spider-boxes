@@ -239,7 +239,8 @@ class RestRoutes {
 						'permission_callback' => array( $this, 'check_reviews_permissions' ),
 					),
 				)
-			);register_rest_route(
+			);
+			register_rest_route(
 				$this->namespace,
 				'/reviews/(?P<id>\\d+)',
 				array(
@@ -281,6 +282,58 @@ class RestRoutes {
 				)
 			);
 		}
+
+		// Component creation with defaults endpoint
+		register_rest_route(
+			$this->namespace,
+			'/components/create-with-defaults',
+			array(
+				'methods'             => WP_REST_Server::CREATABLE,
+				'callback'            => array( $this, 'create_component_with_defaults' ),
+				'permission_callback' => array( $this, 'check_permissions' ),
+			)
+		);
+
+		// Component children management endpoints
+		// register_rest_route(
+		// $this->namespace,
+		// '/components/(?P<parent_id>[\\w-]+)/tabs',
+		// array(
+		// 'methods'             => WP_REST_Server::CREATABLE,
+		// 'callback'            => array( $this, 'add_tab_to_component' ),
+		// 'permission_callback' => array( $this, 'check_permissions' ),
+		// )
+		// );
+
+		// register_rest_route(
+		// $this->namespace,
+		// '/components/(?P<parent_id>[\\w-]+)/panes',
+		// array(
+		// 'methods'             => WP_REST_Server::CREATABLE,
+		// 'callback'            => array( $this, 'add_pane_to_component' ),
+		// 'permission_callback' => array( $this, 'check_permissions' ),
+		// )
+		// );
+
+		// register_rest_route(
+		// $this->namespace,
+		// '/components/(?P<parent_id>[\\w-]+)/columns',
+		// array(
+		// 'methods'             => WP_REST_Server::CREATABLE,
+		// 'callback'            => array( $this, 'add_column_to_component' ),
+		// 'permission_callback' => array( $this, 'check_permissions' ),
+		// )
+		// );
+
+		// register_rest_route(
+		// $this->namespace,
+		// '/components/(?P<parent_id>[\\w-]+)/children/(?P<child_id>[\\w-]+)',
+		// array(
+		// 'methods'             => WP_REST_Server::DELETABLE,
+		// 'callback'            => array( $this, 'remove_child_from_component' ),
+		// 'permission_callback' => array( $this, 'check_permissions' ),
+		// )
+		// );
 
 		/**
 		 * Allow developers to register custom REST routes
@@ -1069,7 +1122,6 @@ class RestRoutes {
 
 		return rest_ensure_response( array( 'component_types' => $component_types->toArray() ) );
 	}
-
 	/**
 	 * Get components.
 	 *
@@ -1077,111 +1129,182 @@ class RestRoutes {
 	 * @return WP_REST_Response
 	 */
 	public function get_components( $request ) {
-		$parent             = $request->get_param( 'parent' );
-		$component_registry = spider_boxes()->get_container()->get( ComponentRegistry::class );
-		$components         = $component_registry->get_components( $parent );
+		$parent_id  = $request->get_param( 'parent_id' );
+		$section_id = $request->get_param( 'section_id' );
+		$context    = $request->get_param( 'context' );
 
-		return rest_ensure_response( array( 'components' => $components->toArray() ) );
+		// Get components from database instead of registry.
+		$components = DatabaseManager::get_all_components( $parent_id, $section_id, $context );
+
+		return rest_ensure_response( $components );
 	}
-
 	/**
 	 * Get single component.
 	 *
 	 * @param WP_REST_Request $request Request object.
-	 * @return WP_REST_Response
+	 * @return WP_REST_Response|WP_Error
 	 */
 	public function get_component( $request ) {
-		$id                 = $request->get_param( 'id' );
-		$component_registry = spider_boxes()->get_container()->get( ComponentRegistry::class );
-		$component          = $component_registry->get_component( $id );
+		$id = $request->get_param( 'id' );
+
+		// Get component configuration from database.
+		$component = DatabaseManager::get_component_config( $id );
 
 		if ( ! $component ) {
-			return new WP_Error( 'component_not_found', 'Component not found', array( 'status' => 404 ) );
+			return new WP_Error( 'component_not_found', __( 'Component not found', 'spider-boxes' ), array( 'status' => 404 ) );
 		}
 
-		return rest_ensure_response( array( 'component' => $component ) );
+		return rest_ensure_response( $component );
 	}
-
 	/**
 	 * Create component.
 	 *
 	 * @param WP_REST_Request $request Request object.
-	 * @return WP_REST_Response
+	 * @return WP_REST_Response|WP_Error
 	 */
 	public function create_component( $request ) {
-		$component_data     = $request->get_json_params();
-		$component_registry = spider_boxes()->get_container()->get( ComponentRegistry::class );
+		$params = $request->get_json_params();
+
+		if ( empty( $params ) ) {
+			return new WP_Error( 'no_data', __( 'No data provided', 'spider-boxes' ), array( 'status' => 400 ) );
+		}
 
 		// Validate required fields.
-		if ( empty( $component_data['id'] ) || empty( $component_data['type'] ) ) {
-			return new WP_Error( 'missing_required_fields', 'Component ID and type are required', array( 'status' => 400 ) );
+		$required_fields = array( 'id', 'type', 'title' );
+		foreach ( $required_fields as $field ) {
+			if ( empty( $params[ $field ] ) ) {
+				return new WP_Error(
+					'missing_required_field',
+					// translators: %s is the field name.
+					sprintf( __( 'Missing required field: %s', 'spider-boxes' ), $field ),
+					array( 'status' => 400 )
+				);
+			}
 		}
 
-		$result = $component_registry->register_component( $component_data['id'], $component_data );
-
-		if ( is_wp_error( $result ) ) {
-			return $result;
+		// Check if component already exists.
+		$existing_component = DatabaseManager::get_component_config( $params['id'] );
+		if ( $existing_component ) {
+			return new WP_Error( 'component_exists', __( 'Component with this ID already exists', 'spider-boxes' ), array( 'status' => 409 ) );
 		}
+
+		// Sanitize input data.
+		$component_data = array(
+			'id'          => sanitize_key( $params['id'] ),
+			'type'        => sanitize_text_field( $params['type'] ),
+			'title'       => sanitize_text_field( $params['title'] ),
+			'description' => sanitize_textarea_field( $params['description'] ?? '' ),
+			'parent_id'   => sanitize_key( $params['parent_id'] ?? '' ),
+			'section_id'  => sanitize_key( $params['section_id'] ?? '' ),
+			'context'     => sanitize_text_field( $params['context'] ?? 'default' ),
+			'settings'    => is_array( $params['settings'] ?? array() ) ? $params['settings'] : array(),
+			'children'    => is_array( $params['children'] ?? array() ) ? $params['children'] : array(),
+			'sort_order'  => absint( $params['sort_order'] ?? 0 ),
+			'is_active'   => isset( $params['is_active'] ) ? (bool) $params['is_active'] : true,
+			'capability'  => sanitize_text_field( $params['capability'] ?? 'manage_options' ),
+		);
+
+		// Save component configuration to database.
+		$success = DatabaseManager::save_component_config( $component_data['id'], $component_data );
+
+		if ( ! $success ) {
+			return new WP_Error( 'component_create_failed', __( 'Failed to create component', 'spider-boxes' ), array( 'status' => 500 ) );
+		}
+
+		// Also register with component registry for runtime usage.
+		$component_registry = spider_boxes()->get_container()->get( ComponentRegistry::class );
+		$component_registry->register_component( $component_data['id'], $component_data );
 
 		return rest_ensure_response(
 			array(
 				'success'   => true,
-				'component' => $result,
+				'id'        => $component_data['id'],
+				'component' => $component_data,
 			)
 		);
 	}
-
 	/**
 	 * Update component.
 	 *
 	 * @param WP_REST_Request $request Request object.
-	 * @return WP_REST_Response
+	 * @return WP_REST_Response|WP_Error
 	 */
 	public function update_component( $request ) {
-		$id                 = $request->get_param( 'id' );
-		$component_data     = $request->get_json_params();
-		$component_registry = spider_boxes()->get_container()->get( ComponentRegistry::class );
+		$id     = $request->get_param( 'id' );
+		$params = $request->get_json_params();
 
-		$existing_component = $component_registry->get_component( $id );
+		if ( empty( $params ) ) {
+			return new WP_Error( 'no_data', __( 'No data provided', 'spider-boxes' ), array( 'status' => 400 ) );
+		}
+
+		// Check if component exists in database.
+		$existing_component = DatabaseManager::get_component_config( $id );
 		if ( ! $existing_component ) {
-			return new WP_Error( 'component_not_found', 'Component not found', array( 'status' => 404 ) );
+			return new WP_Error( 'component_not_found', __( 'Component not found', 'spider-boxes' ), array( 'status' => 404 ) );
 		}
 
-		$updated_data = array_merge( $existing_component, $component_data );
-		$result       = $component_registry->register_component( $id, $updated_data );
+		// Merge with existing data.
+		$component_data = array_merge(
+			$existing_component,
+			array(
+				'type'        => sanitize_text_field( $params['type'] ?? $existing_component['type'] ),
+				'title'       => sanitize_text_field( $params['title'] ?? $existing_component['title'] ),
+				'description' => sanitize_textarea_field( $params['description'] ?? $existing_component['description'] ),
+				'parent_id'   => sanitize_key( $params['parent_id'] ?? $existing_component['parent_id'] ),
+				'section_id'  => sanitize_key( $params['section_id'] ?? $existing_component['section_id'] ),
+				'context'     => sanitize_text_field( $params['context'] ?? $existing_component['context'] ),
+				'settings'    => is_array( $params['settings'] ?? $existing_component['settings'] ) ? $params['settings'] ?? $existing_component['settings'] : $existing_component['settings'],
+				'children'    => is_array( $params['children'] ?? $existing_component['children'] ) ? $params['children'] ?? $existing_component['children'] : $existing_component['children'],
+				'sort_order'  => isset( $params['sort_order'] ) ? absint( $params['sort_order'] ) : $existing_component['sort_order'],
+				'is_active'   => isset( $params['is_active'] ) ? (bool) $params['is_active'] : $existing_component['is_active'],
+				'capability'  => sanitize_text_field( $params['capability'] ?? $existing_component['capability'] ),
+			)
+		);
 
-		if ( is_wp_error( $result ) ) {
-			return $result;
+		// Update component configuration in database.
+		$success = DatabaseManager::save_component_config( $id, $component_data );
+
+		if ( ! $success ) {
+			return new WP_Error( 'component_update_failed', __( 'Failed to update component', 'spider-boxes' ), array( 'status' => 500 ) );
 		}
+
+		// Also update in component registry for runtime usage.
+		$component_registry = spider_boxes()->get_container()->get( ComponentRegistry::class );
+		$component_registry->register_component( $id, $component_data );
 
 		return rest_ensure_response(
 			array(
 				'success'   => true,
-				'component' => $result,
+				'component' => $component_data,
 			)
 		);
 	}
-
 	/**
 	 * Delete component.
 	 *
 	 * @param WP_REST_Request $request Request object.
-	 * @return WP_REST_Response
+	 * @return WP_REST_Response|WP_Error
 	 */
 	public function delete_component( $request ) {
-		$id                 = $request->get_param( 'id' );
-		$component_registry = spider_boxes()->get_container()->get( ComponentRegistry::class );
+		$id = $request->get_param( 'id' );
 
-		$existing_component = $component_registry->get_component( $id );
+		// Check if component exists in database.
+		$existing_component = DatabaseManager::get_component_config( $id );
 		if ( ! $existing_component ) {
-			return new WP_Error( 'component_not_found', 'Component not found', array( 'status' => 404 ) );
+			return new WP_Error( 'component_not_found', __( 'Component not found', 'spider-boxes' ), array( 'status' => 404 ) );
 		}
 
-		$result = $component_registry->remove_component( $id );
+		// Delete component configuration from database.
+		$success = DatabaseManager::delete_component_config( $id );
 
-		if ( ! $result ) {
-			return new WP_Error( 'component_delete_failed', 'Failed to delete component', array( 'status' => 500 ) );
+		if ( ! $success ) {
+			return new WP_Error( 'component_delete_failed', __( 'Failed to delete component', 'spider-boxes' ), array( 'status' => 500 ) );
 		}
+
+		// Also remove from component registry for runtime usage.
+		$component_registry = spider_boxes()->get_container()->get( ComponentRegistry::class );
+		$component_registry->remove_component( $id );
+
 		return rest_ensure_response( array( 'success' => true ) );
 	}
 
@@ -1197,7 +1320,6 @@ class RestRoutes {
 
 		return rest_ensure_response( array( 'section_types' => $section_types->toArray() ) );
 	}
-
 	/**
 	 * Get sections.
 	 *
@@ -1205,111 +1327,178 @@ class RestRoutes {
 	 * @return WP_REST_Response
 	 */
 	public function get_sections( $request ) {
-		$parent           = $request->get_param( 'parent' );
-		$section_registry = spider_boxes()->get_container()->get( SectionRegistry::class );
-		$sections         = $section_registry->get_sections( $parent );
+		$context = $request->get_param( 'context' );
+		$screen  = $request->get_param( 'screen' );
 
-		return rest_ensure_response( array( 'sections' => $sections->toArray() ) );
+		// Get sections from database instead of registry.
+		$sections = DatabaseManager::get_all_sections( $context, $screen );
+
+		return rest_ensure_response( $sections );
 	}
-
 	/**
 	 * Get single section.
 	 *
 	 * @param WP_REST_Request $request Request object.
-	 * @return WP_REST_Response
+	 * @return WP_REST_Response|WP_Error
 	 */
 	public function get_section( $request ) {
-		$id               = $request->get_param( 'id' );
-		$section_registry = spider_boxes()->get_container()->get( SectionRegistry::class );
-		$section          = $section_registry->get_section( $id );
+		$id = $request->get_param( 'id' );
+
+		// Get section configuration from database.
+		$section = DatabaseManager::get_section_config( $id );
 
 		if ( ! $section ) {
-			return new WP_Error( 'section_not_found', 'Section not found', array( 'status' => 404 ) );
+			return new WP_Error( 'section_not_found', __( 'Section not found', 'spider-boxes' ), array( 'status' => 404 ) );
 		}
 
-		return rest_ensure_response( array( 'section' => $section ) );
+		return rest_ensure_response( $section );
 	}
-
 	/**
 	 * Create section.
 	 *
 	 * @param WP_REST_Request $request Request object.
-	 * @return WP_REST_Response
+	 * @return WP_REST_Response|WP_Error
 	 */
 	public function create_section( $request ) {
-		$section_data     = $request->get_json_params();
-		$section_registry = spider_boxes()->get_container()->get( SectionRegistry::class );
+		$params = $request->get_json_params();
+
+		if ( empty( $params ) ) {
+			return new WP_Error( 'no_data', __( 'No data provided', 'spider-boxes' ), array( 'status' => 400 ) );
+		}
 
 		// Validate required fields.
-		if ( empty( $section_data['id'] ) || empty( $section_data['type'] ) ) {
-			return new WP_Error( 'missing_required_fields', 'Section ID and type are required', array( 'status' => 400 ) );
+		$required_fields = array( 'id', 'type', 'title' );
+		foreach ( $required_fields as $field ) {
+			if ( empty( $params[ $field ] ) ) {
+				return new WP_Error(
+					'missing_required_field',
+					// translators: %s is the field name.
+					sprintf( __( 'Missing required field: %s', 'spider-boxes' ), $field ),
+					array( 'status' => 400 )
+				);
+			}
 		}
 
-		$result = $section_registry->register_section( $section_data['id'], $section_data );
-
-		if ( is_wp_error( $result ) ) {
-			return $result;
+		// Check if section already exists.
+		$existing_section = DatabaseManager::get_section_config( $params['id'] );
+		if ( $existing_section ) {
+			return new WP_Error( 'section_exists', __( 'Section with this ID already exists', 'spider-boxes' ), array( 'status' => 409 ) );
 		}
+
+		// Sanitize input data.
+		$section_data = array(
+			'id'          => sanitize_key( $params['id'] ),
+			'type'        => sanitize_text_field( $params['type'] ),
+			'title'       => sanitize_text_field( $params['title'] ),
+			'description' => sanitize_textarea_field( $params['description'] ?? '' ),
+			'context'     => sanitize_text_field( $params['context'] ?? 'default' ),
+			'screen'      => sanitize_text_field( $params['screen'] ?? '' ),
+			'settings'    => is_array( $params['settings'] ?? array() ) ? $params['settings'] : array(),
+			'components'  => is_array( $params['components'] ?? array() ) ? $params['components'] : array(),
+			'sort_order'  => absint( $params['sort_order'] ?? 0 ),
+			'is_active'   => isset( $params['is_active'] ) ? (bool) $params['is_active'] : true,
+			'capability'  => sanitize_text_field( $params['capability'] ?? 'manage_options' ),
+		);
+
+		// Save section configuration to database.
+		$success = DatabaseManager::save_section_config( $section_data['id'], $section_data );
+
+		if ( ! $success ) {
+			return new WP_Error( 'section_create_failed', __( 'Failed to create section', 'spider-boxes' ), array( 'status' => 500 ) );
+		}
+
+		// Also register with section registry for runtime usage.
+		$section_registry = spider_boxes()->get_container()->get( SectionRegistry::class );
+		$section_registry->register_section( $section_data['id'], $section_data );
 
 		return rest_ensure_response(
 			array(
 				'success' => true,
-				'section' => $result,
+				'id'      => $section_data['id'],
+				'section' => $section_data,
 			)
 		);
 	}
-
 	/**
 	 * Update section.
 	 *
 	 * @param WP_REST_Request $request Request object.
-	 * @return WP_REST_Response
+	 * @return WP_REST_Response|WP_Error
 	 */
 	public function update_section( $request ) {
-		$id               = $request->get_param( 'id' );
-		$section_data     = $request->get_json_params();
-		$section_registry = spider_boxes()->get_container()->get( SectionRegistry::class );
+		$id     = $request->get_param( 'id' );
+		$params = $request->get_json_params();
 
-		$existing_section = $section_registry->get_section( $id );
+		if ( empty( $params ) ) {
+			return new WP_Error( 'no_data', __( 'No data provided', 'spider-boxes' ), array( 'status' => 400 ) );
+		}
+
+		// Check if section exists in database.
+		$existing_section = DatabaseManager::get_section_config( $id );
 		if ( ! $existing_section ) {
-			return new WP_Error( 'section_not_found', 'Section not found', array( 'status' => 404 ) );
+			return new WP_Error( 'section_not_found', __( 'Section not found', 'spider-boxes' ), array( 'status' => 404 ) );
 		}
 
-		$updated_data = array_merge( $existing_section, $section_data );
-		$result       = $section_registry->register_section( $id, $updated_data );
+		// Merge with existing data.
+		$section_data = array_merge(
+			$existing_section,
+			array(
+				'type'        => sanitize_text_field( $params['type'] ?? $existing_section['type'] ),
+				'title'       => sanitize_text_field( $params['title'] ?? $existing_section['title'] ),
+				'description' => sanitize_textarea_field( $params['description'] ?? $existing_section['description'] ),
+				'context'     => sanitize_text_field( $params['context'] ?? $existing_section['context'] ),
+				'screen'      => sanitize_text_field( $params['screen'] ?? $existing_section['screen'] ),
+				'settings'    => is_array( $params['settings'] ?? $existing_section['settings'] ) ? $params['settings'] ?? $existing_section['settings'] : $existing_section['settings'],
+				'components'  => is_array( $params['components'] ?? $existing_section['components'] ) ? $params['components'] ?? $existing_section['components'] : $existing_section['components'],
+				'sort_order'  => isset( $params['sort_order'] ) ? absint( $params['sort_order'] ) : $existing_section['sort_order'],
+				'is_active'   => isset( $params['is_active'] ) ? (bool) $params['is_active'] : $existing_section['is_active'],
+				'capability'  => sanitize_text_field( $params['capability'] ?? $existing_section['capability'] ),
+			)
+		);
 
-		if ( is_wp_error( $result ) ) {
-			return $result;
+		// Update section configuration in database.
+		$success = DatabaseManager::save_section_config( $id, $section_data );
+
+		if ( ! $success ) {
+			return new WP_Error( 'section_update_failed', __( 'Failed to update section', 'spider-boxes' ), array( 'status' => 500 ) );
 		}
+
+		// Also update in section registry for runtime usage.
+		$section_registry = spider_boxes()->get_container()->get( SectionRegistry::class );
+		$section_registry->register_section( $id, $section_data );
 
 		return rest_ensure_response(
 			array(
 				'success' => true,
-				'section' => $result,
+				'section' => $section_data,
 			)
 		);
 	}
-
 	/**
 	 * Delete section.
 	 *
 	 * @param WP_REST_Request $request Request object.
-	 * @return WP_REST_Response
+	 * @return WP_REST_Response|WP_Error
 	 */
 	public function delete_section( $request ) {
-		$id               = $request->get_param( 'id' );
-		$section_registry = spider_boxes()->get_container()->get( SectionRegistry::class );
+		$id = $request->get_param( 'id' );
 
-		$existing_section = $section_registry->get_section( $id );
+		// Check if section exists in database.
+		$existing_section = DatabaseManager::get_section_config( $id );
 		if ( ! $existing_section ) {
-			return new WP_Error( 'section_not_found', 'Section not found', array( 'status' => 404 ) );
+			return new WP_Error( 'section_not_found', __( 'Section not found', 'spider-boxes' ), array( 'status' => 404 ) );
 		}
 
-		$result = $section_registry->remove_section( $id );
+		// Delete section configuration from database.
+		$success = DatabaseManager::delete_section_config( $id );
 
-		if ( ! $result ) {
-			return new WP_Error( 'section_delete_failed', 'Failed to delete section', array( 'status' => 500 ) );
+		if ( ! $success ) {
+			return new WP_Error( 'section_delete_failed', __( 'Failed to delete section', 'spider-boxes' ), array( 'status' => 500 ) );
 		}
+
+		// Also remove from section registry for runtime usage.
+		$section_registry = spider_boxes()->get_container()->get( SectionRegistry::class );
+		$section_registry->remove_section( $id );
 
 		return rest_ensure_response( array( 'success' => true ) );
 	}
@@ -1414,5 +1603,142 @@ class RestRoutes {
 		$response_data = apply_filters( 'spider_boxes_rest_products_response', $response_data, $request );
 
 		return rest_ensure_response( $response_data );
+	}
+
+	/**
+	 * Create component with default children
+	 *
+	 * @param WP_REST_Request $request Request object.
+	 * @return WP_REST_Response|WP_Error
+	 */
+	public function create_component_with_defaults( $request ) {
+		$component_data     = $request->get_json_params();
+		$component_registry = spider_boxes()->get_container()->get( ComponentRegistry::class );
+		$component_factory  = spider_boxes()->get_container()->get( 'componentFactory' );
+
+		// Validate required fields
+		if ( empty( $component_data['id'] ) || empty( $component_data['type'] ) ) {
+			return new WP_Error( 'missing_required_fields', 'Component ID and type are required', array( 'status' => 400 ) );
+		}
+
+		$component_type = $component_registry->get_component_type( $component_data['type'] );
+		if ( ! $component_type ) {
+			return new WP_Error( 'invalid_component_type', 'Invalid component type', array( 'status' => 400 ) );
+		}
+
+		// Create component with proper structure using factory
+		$config = $component_factory->get_component_config( $component_data['type'], $component_data['id'], $component_data );
+
+		$result = $component_registry->register_component( $component_data['id'], $config );
+
+		if ( is_wp_error( $result ) ) {
+			return $result;
+		}
+
+		return rest_ensure_response(
+			array(
+				'success'   => true,
+				'component' => $config,
+			)
+		);
+	}
+
+	/**
+	 * Add tab to tabs component
+	 *
+	 * @param WP_REST_Request $request Request object.
+	 * @return WP_REST_Response|WP_Error
+	 */
+	public function add_tab_to_component( $request ) {
+		$parent_id         = $request->get_param( 'parent_id' );
+		$tab_data          = $request->get_json_params();
+		$component_factory = spider_boxes()->get_container()->get( 'componentFactory' );
+
+		$tab_id = $component_factory->add_tab_to_tabs( $parent_id, $tab_data );
+
+		if ( empty( $tab_id ) ) {
+			return new WP_Error( 'tab_creation_failed', 'Failed to create tab', array( 'status' => 500 ) );
+		}
+
+		return rest_ensure_response(
+			array(
+				'success' => true,
+				'tab_id'  => $tab_id,
+			)
+		);
+	}
+
+	/**
+	 * Add pane to accordion component
+	 *
+	 * @param WP_REST_Request $request Request object.
+	 * @return WP_REST_Response|WP_Error
+	 */
+	public function add_pane_to_component( $request ) {
+		$parent_id         = $request->get_param( 'parent_id' );
+		$pane_data         = $request->get_json_params();
+		$component_factory = spider_boxes()->get_container()->get( 'componentFactory' );
+
+		$pane_id = $component_factory->add_pane_to_accordion( $parent_id, $pane_data );
+
+		if ( empty( $pane_id ) ) {
+			return new WP_Error( 'pane_creation_failed', 'Failed to create pane', array( 'status' => 500 ) );
+		}
+
+		return rest_ensure_response(
+			array(
+				'success' => true,
+				'pane_id' => $pane_id,
+			)
+		);
+	}
+
+	/**
+	 * Add column to row component
+	 *
+	 * @param WP_REST_Request $request Request object.
+	 * @return WP_REST_Response|WP_Error
+	 */
+	public function add_column_to_component( $request ) {
+		$parent_id         = $request->get_param( 'parent_id' );
+		$column_data       = $request->get_json_params();
+		$component_factory = spider_boxes()->get_container()->get( 'componentFactory' );
+
+		$column_id = $component_factory->add_column_to_row( $parent_id, $column_data );
+
+		if ( empty( $column_id ) ) {
+			return new WP_Error( 'column_creation_failed', 'Failed to create column', array( 'status' => 500 ) );
+		}
+
+		return rest_ensure_response(
+			array(
+				'success'   => true,
+				'column_id' => $column_id,
+			)
+		);
+	}
+
+	/**
+	 * Remove child from parent component
+	 *
+	 * @param WP_REST_Request $request Request object.
+	 * @return WP_REST_Response|WP_Error
+	 */
+	public function remove_child_from_component( $request ) {
+		$parent_id         = $request->get_param( 'parent_id' );
+		$child_id          = $request->get_param( 'child_id' );
+		$component_factory = spider_boxes()->get_container()->get( 'componentFactory' );
+
+		$result = $component_factory->remove_child_from_parent( $parent_id, $child_id );
+
+		if ( ! $result ) {
+			return new WP_Error( 'child_removal_failed', 'Failed to remove child from parent', array( 'status' => 500 ) );
+		}
+
+		return rest_ensure_response(
+			array(
+				'success' => true,
+			)
+		);
 	}
 }
