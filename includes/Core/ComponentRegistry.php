@@ -151,7 +151,7 @@ class ComponentRegistry {
 			'fields'      => array(),
 			'class'       => '',
 			'context'     => 'default',
-			'capability'  => 'manage_options',
+
 			'order'       => 10,
 		);
 

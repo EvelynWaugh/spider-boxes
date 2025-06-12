@@ -56,14 +56,27 @@ class RestRoutes {
 					'permission_callback' => array( $this, 'check_permissions' ),
 				),
 			)
-		);      // Component types endpoint.
+		);
+
+		// Field type configuration endpoint.
+		register_rest_route(
+			$this->namespace,
+			'/field-types/(?P<type>[\\w-]+)/config',
+			array(
+				'methods'             => WP_REST_Server::READABLE,
+				'callback'            => array( $this, 'get_field_type_config' ),
+				'permission_callback' => array( $this, 'check_permissions' ),
+			)
+		);
+
+		// Component types endpoint.
 		register_rest_route(
 			$this->namespace,
 			'/component-types',
 			array(
 				'methods'             => WP_REST_Server::READABLE,
 				'callback'            => array( $this, 'get_component_types' ),
-				'permission_callback' => array( $this, 'check_reviews_permissions' ),
+				'permission_callback' => array( $this, 'check_permissions' ),
 			)
 		);
 
@@ -75,12 +88,12 @@ class RestRoutes {
 				array(
 					'methods'             => WP_REST_Server::READABLE,
 					'callback'            => array( $this, 'get_components' ),
-					'permission_callback' => array( $this, 'check_reviews_permissions' ),
+					'permission_callback' => array( $this, 'check_permissions' ),
 				),
 				array(
 					'methods'             => WP_REST_Server::CREATABLE,
 					'callback'            => array( $this, 'create_component' ),
-					'permission_callback' => array( $this, 'check_reviews_permissions' ),
+					'permission_callback' => array( $this, 'check_permissions' ),
 				),
 			)
 		);
@@ -226,17 +239,17 @@ class RestRoutes {
 					array(
 						'methods'             => WP_REST_Server::READABLE,
 						'callback'            => array( $this, 'get_reviews' ),
-						'permission_callback' => array( $this, 'check_reviews_permissions' ),
+						'permission_callback' => array( $this, 'check_permissions' ),
 					),
 					array(
 						'methods'             => WP_REST_Server::CREATABLE,
 						'callback'            => array( $this, 'create_review' ),
-						'permission_callback' => array( $this, 'check_reviews_permissions' ),
+						'permission_callback' => array( $this, 'check_permissions' ),
 					),
 					array(
 						'methods'             => WP_REST_Server::EDITABLE,
 						'callback'            => array( $this, 'update_review' ),
-						'permission_callback' => array( $this, 'check_reviews_permissions' ),
+						'permission_callback' => array( $this, 'check_permissions' ),
 					),
 				)
 			);
@@ -247,17 +260,17 @@ class RestRoutes {
 					array(
 						'methods'             => WP_REST_Server::READABLE,
 						'callback'            => array( $this, 'get_review' ),
-						'permission_callback' => array( $this, 'check_reviews_permissions' ),
+						'permission_callback' => array( $this, 'check_permissions' ),
 					),
 					array(
 						'methods'             => WP_REST_Server::EDITABLE,
 						'callback'            => array( $this, 'update_single_review' ),
-						'permission_callback' => array( $this, 'check_reviews_permissions' ),
+						'permission_callback' => array( $this, 'check_permissions' ),
 					),
 					array(
 						'methods'             => WP_REST_Server::DELETABLE,
 						'callback'            => array( $this, 'delete_review' ),
-						'permission_callback' => array( $this, 'check_reviews_permissions' ),
+						'permission_callback' => array( $this, 'check_permissions' ),
 					),
 				)
 			);          // Review fields endpoint
@@ -267,7 +280,7 @@ class RestRoutes {
 				array(
 					'methods'             => WP_REST_Server::READABLE,
 					'callback'            => array( $this, 'get_review_fields' ),
-					'permission_callback' => array( $this, 'check_reviews_permissions' ),
+					'permission_callback' => array( $this, 'check_permissions' ),
 				)
 			);
 
@@ -278,7 +291,7 @@ class RestRoutes {
 				array(
 					'methods'             => WP_REST_Server::READABLE,
 					'callback'            => array( $this, 'get_products' ),
-					'permission_callback' => array( $this, 'check_reviews_permissions' ),
+					'permission_callback' => array( $this, 'check_permissions' ),
 				)
 			);
 		}
@@ -293,47 +306,6 @@ class RestRoutes {
 				'permission_callback' => array( $this, 'check_permissions' ),
 			)
 		);
-
-		// Component children management endpoints
-		// register_rest_route(
-		// $this->namespace,
-		// '/components/(?P<parent_id>[\\w-]+)/tabs',
-		// array(
-		// 'methods'             => WP_REST_Server::CREATABLE,
-		// 'callback'            => array( $this, 'add_tab_to_component' ),
-		// 'permission_callback' => array( $this, 'check_permissions' ),
-		// )
-		// );
-
-		// register_rest_route(
-		// $this->namespace,
-		// '/components/(?P<parent_id>[\\w-]+)/panes',
-		// array(
-		// 'methods'             => WP_REST_Server::CREATABLE,
-		// 'callback'            => array( $this, 'add_pane_to_component' ),
-		// 'permission_callback' => array( $this, 'check_permissions' ),
-		// )
-		// );
-
-		// register_rest_route(
-		// $this->namespace,
-		// '/components/(?P<parent_id>[\\w-]+)/columns',
-		// array(
-		// 'methods'             => WP_REST_Server::CREATABLE,
-		// 'callback'            => array( $this, 'add_column_to_component' ),
-		// 'permission_callback' => array( $this, 'check_permissions' ),
-		// )
-		// );
-
-		// register_rest_route(
-		// $this->namespace,
-		// '/components/(?P<parent_id>[\\w-]+)/children/(?P<child_id>[\\w-]+)',
-		// array(
-		// 'methods'             => WP_REST_Server::DELETABLE,
-		// 'callback'            => array( $this, 'remove_child_from_component' ),
-		// 'permission_callback' => array( $this, 'check_permissions' ),
-		// )
-		// );
 
 		/**
 		 * Allow developers to register custom REST routes
@@ -352,28 +324,274 @@ class RestRoutes {
 	}
 
 	/**
-	 * Check permissions for reviews API access
-	 *
-	 * @param WP_REST_Request $request Request object
-	 * @return bool
-	 */
-	public function check_reviews_permissions( $request ) {
-		// For now, allow any logged-in user to access reviews
-		// TODO: Implement proper WooCommerce capability checks.
-		return is_user_logged_in();
-	}
-
-	/**
 	 * Get field types
 	 *
 	 * @param WP_REST_Request $request Request object.
 	 * @return WP_REST_Response
 	 */
 	public function get_field_types( $request ) {
-		// Get field types from database instead of registry.
-		$field_types = DatabaseManager::get_field_types();
+
+		// Get field types from registry (available field classes) and database.
+		$field_registry = spider_boxes()->get_container()->get( 'fieldRegistry' );
+		$field_types    = $field_registry->get_all_field_types();
 
 		return rest_ensure_response( $field_types );
+	}
+
+	/**
+	 * Get field type configuration
+	 *
+	 * @param WP_REST_Request $request Request object.
+	 * @return WP_REST_Response|WP_Error
+	 */
+	public function get_field_type_config( $request ) {
+		$field_type = $request->get_param( 'type' );
+
+		if ( empty( $field_type ) ) {
+			return new WP_Error(
+				'missing_field_type',
+				__( 'Field type is required', 'spider-boxes' ),
+				array( 'status' => 400 )
+			);
+		}
+
+		// Get field type from registry and database.
+		$field_registry       = spider_boxes()->get_container()->get( 'fieldRegistry' );
+		$registry_field_types = $field_registry->get_field_types();
+		$db_field_types       = DatabaseManager::get_field_types();
+
+		// Find the field type.
+		$field_type_config = null;
+
+		// First check registry.
+		if ( isset( $registry_field_types[ $field_type ] ) ) {
+			$config            = $registry_field_types[ $field_type ];
+			$field_type_config = array(
+				'id'          => $field_type,
+				'name'        => ucwords( str_replace( array( '_', '-' ), ' ', $field_type ) ),
+				'type'        => $field_type,
+				'class_name'  => $config['class'] ?? '',
+				'description' => $config['description'] ?? '',
+				'supports'    => $config['supports'] ?? array(),
+				'meta_field'  => $config['meta_field'] ?? false,
+			);
+		}
+
+		// Override with database config if exists.
+		foreach ( $db_field_types as $db_type ) {
+			if ( $db_type['type'] === $field_type ) {
+				$field_type_config = array_merge( $field_type_config ?? array(), $db_type );
+				break;
+			}
+		}
+
+		if ( ! $field_type_config ) {
+			return new WP_Error(
+				'field_type_not_found',
+				__( 'Field type not found', 'spider-boxes' ),
+				array( 'status' => 404 )
+			);
+		}
+
+		// Generate dynamic configuration fields based on supports.
+		$config_fields = $this->generate_config_fields( $field_type_config );
+
+		return rest_ensure_response(
+			array(
+				'field_type'    => $field_type_config,
+				'config_fields' => $config_fields,
+			)
+		);
+	}
+
+	/**
+	 * Generate configuration fields based on field type supports
+	 *
+	 * @param array $field_type_config Field type configuration.
+	 * @return array
+	 */
+	private function generate_config_fields( $field_type_config ) {
+		$supports = $field_type_config['supports'] ?? array();
+		$fields   = array();
+
+		// Base fields that all types support.
+		$fields[] = array(
+			'id'          => 'label',
+			'type'        => 'text',
+			'title'       => 'Label',
+			'description' => 'The display label for this field',
+			'required'    => true,
+			'placeholder' => 'Enter field label',
+		);
+
+		$fields[] = array(
+			'id'          => 'description',
+			'type'        => 'textarea',
+			'title'       => 'Description',
+			'description' => 'Optional description for this field',
+			'rows'        => 3,
+			'placeholder' => 'Enter field description',
+		);
+
+		$fields[] = array(
+			'id'          => 'required',
+			'type'        => 'checkbox',
+			'title'       => 'Required Field',
+			'description' => 'Mark this field as required',
+		);
+
+		// Add supported configuration fields.
+		if ( in_array( 'placeholder', $supports, true ) ) {
+			$fields[] = array(
+				'id'          => 'placeholder',
+				'type'        => 'text',
+				'title'       => 'Placeholder',
+				'description' => 'Placeholder text for this field',
+				'placeholder' => 'Enter placeholder text',
+			);
+		}
+
+		if ( in_array( 'default_value', $supports, true ) || in_array( 'value', $supports, true ) ) {
+			$fields[] = array(
+				'id'          => 'default_value',
+				'type'        => 'text',
+				'title'       => 'Default Value',
+				'description' => 'Default value for this field',
+				'placeholder' => 'Enter default value',
+			);
+		}
+
+		if ( in_array( 'options', $supports, true ) ) {
+			$fields[] = array(
+				'id'          => 'options',
+				'type'        => 'textarea',
+				'title'       => 'Options',
+				'description' => 'One option per line (value|label format)',
+				'rows'        => 5,
+				'placeholder' => "option1|Option 1\noption2|Option 2",
+			);
+		}
+
+		if ( in_array( 'multiple', $supports, true ) ) {
+			$fields[] = array(
+				'id'          => 'multiple',
+				'type'        => 'checkbox',
+				'title'       => 'Multiple Selection',
+				'description' => 'Allow multiple values to be selected',
+			);
+		}
+
+		if ( in_array( 'rows', $supports, true ) ) {
+			$fields[] = array(
+				'id'          => 'rows',
+				'type'        => 'number',
+				'title'       => 'Rows',
+				'description' => 'Number of rows for textarea',
+				'min'         => 1,
+				'max'         => 20,
+				'default'     => 5,
+			);
+		}
+
+		if ( in_array( 'min', $supports, true ) ) {
+			$fields[] = array(
+				'id'          => 'min_value',
+				'type'        => 'number',
+				'title'       => 'Minimum Value',
+				'description' => 'Minimum allowed value',
+			);
+		}
+
+		if ( in_array( 'max', $supports, true ) ) {
+			$fields[] = array(
+				'id'          => 'max_value',
+				'type'        => 'number',
+				'title'       => 'Maximum Value',
+				'description' => 'Maximum allowed value',
+			);
+		}
+
+		if ( in_array( 'step', $supports, true ) ) {
+			$fields[] = array(
+				'id'          => 'step',
+				'type'        => 'number',
+				'title'       => 'Step',
+				'description' => 'Step increment for range/number fields',
+				'min'         => 0.01,
+				'step'        => 0.01,
+				'default'     => 1,
+			);
+		}
+
+		if ( in_array( 'format', $supports, true ) ) {
+			$fields[] = array(
+				'id'          => 'format',
+				'type'        => 'select',
+				'title'       => 'Date Format',
+				'description' => 'Date/time display format',
+				'options'     => array(
+					'Y-m-d'     => 'YYYY-MM-DD',
+					'm/d/Y'     => 'MM/DD/YYYY',
+					'd/m/Y'     => 'DD/MM/YYYY',
+					'Y-m-d H:i' => 'YYYY-MM-DD HH:MM',
+				),
+				'default'     => 'Y-m-d',
+			);
+		}
+
+		if ( in_array( 'media_type', $supports, true ) ) {
+			$fields[] = array(
+				'id'          => 'media_type',
+				'type'        => 'select',
+				'title'       => 'Media Type',
+				'description' => 'Type of media to allow',
+				'options'     => array(
+					'image'    => 'Image',
+					'video'    => 'Video',
+					'audio'    => 'Audio',
+					'document' => 'Document',
+				),
+				'default'     => 'image',
+			);
+		}
+
+		if ( in_array( 'ajax_action', $supports, true ) ) {
+			$fields[] = array(
+				'id'          => 'ajax_action',
+				'type'        => 'text',
+				'title'       => 'AJAX Action',
+				'description' => 'WordPress AJAX action for loading options',
+				'placeholder' => 'my_ajax_action',
+			);
+		}
+
+		if ( in_array( 'settings', $supports, true ) ) {
+			$fields[] = array(
+				'id'          => 'settings',
+				'type'        => 'textarea',
+				'title'       => 'Additional Settings',
+				'description' => 'JSON object with additional field settings',
+				'rows'        => 5,
+				'placeholder' => '{"key": "value"}',
+			);
+		}
+
+		$fields[] = array(
+			'id'          => 'meta_field',
+			'type'        => 'checkbox',
+			'title'       => 'Is Meta Field',
+			'description' => 'Store this field as a post meta field',
+		);
+
+		/**
+		 * Filter the generated configuration fields
+		 *
+		 * @param array $fields Configuration fields.
+		 * @param array $field_type_config Field type configuration.
+		 */
+		$fields = apply_filters( 'spider_boxes_field_type_config_fields', $fields, $field_type_config );
+
+		return $fields;
 	}
 
 	/**
@@ -390,7 +608,7 @@ class RestRoutes {
 		}
 
 		// Validate required fields.
-		$required_fields = array( 'id', 'name', 'class_name' );
+		$required_fields = array( 'type', 'name' );
 		foreach ( $required_fields as $field ) {
 			if ( empty( $params[ $field ] ) ) {
 				// translators: %s is the field name.
@@ -402,37 +620,25 @@ class RestRoutes {
 			}
 		}
 
-		// Validate field type ID format.
-		if ( ! preg_match( '/^[a-zA-Z0-9_-]+$/', $params['id'] ) ) {
-			return new WP_Error(
-				'invalid_field_type_id',
-				__( 'Field type ID can only contain letters, numbers, underscores, and hyphens', 'spider-boxes' ),
-				array( 'status' => 400 )
-			);
-		}
-
 		// Check if field type already exists.
-		$existing_types = DatabaseManager::get_field_types();
-		$existing_ids   = wp_list_pluck( $existing_types, 'id' );
-		if ( in_array( $params['id'], $existing_ids, true ) ) {
+		$existing_types       = DatabaseManager::get_field_types();
+		$existing_field_types = wp_list_pluck( $existing_types, 'type' );
+		if ( in_array( $params['type'], $existing_field_types, true ) ) {
 			return new WP_Error(
 				'field_type_exists',
 				__( 'Field type already exists', 'spider-boxes' ),
 				array( 'status' => 409 )
 			);
 		}
-
 		// Sanitize input data.
 		$field_type_data = array(
-			'id'          => sanitize_key( $params['id'] ),
+			'type'        => sanitize_key( $params['type'] ),
 			'name'        => sanitize_text_field( $params['name'] ),
-			'class_name'  => sanitize_text_field( $params['class_name'] ),
-			'category'    => sanitize_text_field( $params['category'] ?? 'general' ),
+			'class_name'  => sanitize_text_field( $params['class_name'] ?? '' ),
 			'icon'        => sanitize_text_field( $params['icon'] ?? 'component' ),
 			'description' => sanitize_textarea_field( $params['description'] ?? '' ),
 			'supports'    => is_array( $params['supports'] ?? array() ) ? $params['supports'] : array(),
 			'is_active'   => isset( $params['is_active'] ) ? (bool) $params['is_active'] : true,
-			'sort_order'  => absint( $params['sort_order'] ?? 0 ),
 		);
 
 		// Register field type in database.
@@ -449,11 +655,11 @@ class RestRoutes {
 		// Also register with field registry for runtime usage.
 		$field_registry = spider_boxes()->get_container()->get( 'fieldRegistry' );
 		$field_registry->register_field_type(
-			$field_type_data['id'],
+			$field_type_data['type'],
 			array(
-				'class'    => $field_type_data['class_name'],
+				'class'    => $field_type_data['class_name'] ?? '',
 				'supports' => $field_type_data['supports'],
-				'category' => $field_type_data['category'],
+
 			)
 		);
 
@@ -519,12 +725,6 @@ class RestRoutes {
 
 		if ( is_wp_error( $validated_config ) ) {
 			return $validated_config;
-		}
-
-		// Check if field already exists.
-		$existing_config = DatabaseManager::get_field_config( $validated_config['id'] );
-		if ( $existing_config ) {
-			return new WP_Error( 'field_exists', __( 'Field already exists', 'spider-boxes' ), array( 'status' => 409 ) );
 		}
 
 		// Save field configuration to database.
@@ -1107,7 +1307,6 @@ class RestRoutes {
 
 		return rest_ensure_response( $response_data );
 	}
-
 	/**
 	 * Get component types.
 	 *
@@ -1117,10 +1316,16 @@ class RestRoutes {
 	 * @since 1.0.0
 	 */
 	public function get_component_types( $request ) {
-		$component_registry = spider_boxes()->get_container()->get( ComponentRegistry::class );
-		$component_types    = $component_registry->get_component_types();
+		// Get component types from database instead of registry.
+		$component_types = DatabaseManager::get_component_types();
 
-		return rest_ensure_response( array( 'component_types' => $component_types->toArray() ) );
+		// Convert to nested format to match expected structure
+		$formatted_types = array();
+		foreach ( $component_types as $type ) {
+			$formatted_types[ $type['id'] ] = $type;
+		}
+
+		return rest_ensure_response( array( 'component_types' => $formatted_types ) );
 	}
 	/**
 	 * Get components.
@@ -1194,14 +1399,10 @@ class RestRoutes {
 			'type'        => sanitize_text_field( $params['type'] ),
 			'title'       => sanitize_text_field( $params['title'] ),
 			'description' => sanitize_textarea_field( $params['description'] ?? '' ),
-			'parent_id'   => sanitize_key( $params['parent_id'] ?? '' ),
-			'section_id'  => sanitize_key( $params['section_id'] ?? '' ),
 			'context'     => sanitize_text_field( $params['context'] ?? 'default' ),
 			'settings'    => is_array( $params['settings'] ?? array() ) ? $params['settings'] : array(),
-			'children'    => is_array( $params['children'] ?? array() ) ? $params['children'] : array(),
-			'sort_order'  => absint( $params['sort_order'] ?? 0 ),
 			'is_active'   => isset( $params['is_active'] ) ? (bool) $params['is_active'] : true,
-			'capability'  => sanitize_text_field( $params['capability'] ?? 'manage_options' ),
+
 		);
 
 		// Save component configuration to database.
@@ -1250,14 +1451,9 @@ class RestRoutes {
 				'type'        => sanitize_text_field( $params['type'] ?? $existing_component['type'] ),
 				'title'       => sanitize_text_field( $params['title'] ?? $existing_component['title'] ),
 				'description' => sanitize_textarea_field( $params['description'] ?? $existing_component['description'] ),
-				'parent_id'   => sanitize_key( $params['parent_id'] ?? $existing_component['parent_id'] ),
-				'section_id'  => sanitize_key( $params['section_id'] ?? $existing_component['section_id'] ),
 				'context'     => sanitize_text_field( $params['context'] ?? $existing_component['context'] ),
 				'settings'    => is_array( $params['settings'] ?? $existing_component['settings'] ) ? $params['settings'] ?? $existing_component['settings'] : $existing_component['settings'],
-				'children'    => is_array( $params['children'] ?? $existing_component['children'] ) ? $params['children'] ?? $existing_component['children'] : $existing_component['children'],
-				'sort_order'  => isset( $params['sort_order'] ) ? absint( $params['sort_order'] ) : $existing_component['sort_order'],
 				'is_active'   => isset( $params['is_active'] ) ? (bool) $params['is_active'] : $existing_component['is_active'],
-				'capability'  => sanitize_text_field( $params['capability'] ?? $existing_component['capability'] ),
 			)
 		);
 
@@ -1307,7 +1503,6 @@ class RestRoutes {
 
 		return rest_ensure_response( array( 'success' => true ) );
 	}
-
 	/**
 	 * Get section types.
 	 *
@@ -1315,10 +1510,16 @@ class RestRoutes {
 	 * @return WP_REST_Response
 	 */
 	public function get_section_types( $request ) {
-		$section_registry = spider_boxes()->get_container()->get( SectionRegistry::class );
-		$section_types    = $section_registry->get_section_types();
+		// Get section types from database instead of registry.
+		$section_types = DatabaseManager::get_section_types();
 
-		return rest_ensure_response( array( 'section_types' => $section_types->toArray() ) );
+		// Convert to nested format to match expected structure
+		$formatted_types = array();
+		foreach ( $section_types as $type ) {
+			$formatted_types[ $type['id'] ] = $type;
+		}
+
+		return rest_ensure_response( array( 'section_types' => $formatted_types ) );
 	}
 	/**
 	 * Get sections.
@@ -1394,10 +1595,8 @@ class RestRoutes {
 			'context'     => sanitize_text_field( $params['context'] ?? 'default' ),
 			'screen'      => sanitize_text_field( $params['screen'] ?? '' ),
 			'settings'    => is_array( $params['settings'] ?? array() ) ? $params['settings'] : array(),
-			'components'  => is_array( $params['components'] ?? array() ) ? $params['components'] : array(),
-			'sort_order'  => absint( $params['sort_order'] ?? 0 ),
+
 			'is_active'   => isset( $params['is_active'] ) ? (bool) $params['is_active'] : true,
-			'capability'  => sanitize_text_field( $params['capability'] ?? 'manage_options' ),
 		);
 
 		// Save section configuration to database.
@@ -1449,10 +1648,7 @@ class RestRoutes {
 				'context'     => sanitize_text_field( $params['context'] ?? $existing_section['context'] ),
 				'screen'      => sanitize_text_field( $params['screen'] ?? $existing_section['screen'] ),
 				'settings'    => is_array( $params['settings'] ?? $existing_section['settings'] ) ? $params['settings'] ?? $existing_section['settings'] : $existing_section['settings'],
-				'components'  => is_array( $params['components'] ?? $existing_section['components'] ) ? $params['components'] ?? $existing_section['components'] : $existing_section['components'],
-				'sort_order'  => isset( $params['sort_order'] ) ? absint( $params['sort_order'] ) : $existing_section['sort_order'],
 				'is_active'   => isset( $params['is_active'] ) ? (bool) $params['is_active'] : $existing_section['is_active'],
-				'capability'  => sanitize_text_field( $params['capability'] ?? $existing_section['capability'] ),
 			)
 		);
 
@@ -1639,105 +1835,6 @@ class RestRoutes {
 			array(
 				'success'   => true,
 				'component' => $config,
-			)
-		);
-	}
-
-	/**
-	 * Add tab to tabs component
-	 *
-	 * @param WP_REST_Request $request Request object.
-	 * @return WP_REST_Response|WP_Error
-	 */
-	public function add_tab_to_component( $request ) {
-		$parent_id         = $request->get_param( 'parent_id' );
-		$tab_data          = $request->get_json_params();
-		$component_factory = spider_boxes()->get_container()->get( 'componentFactory' );
-
-		$tab_id = $component_factory->add_tab_to_tabs( $parent_id, $tab_data );
-
-		if ( empty( $tab_id ) ) {
-			return new WP_Error( 'tab_creation_failed', 'Failed to create tab', array( 'status' => 500 ) );
-		}
-
-		return rest_ensure_response(
-			array(
-				'success' => true,
-				'tab_id'  => $tab_id,
-			)
-		);
-	}
-
-	/**
-	 * Add pane to accordion component
-	 *
-	 * @param WP_REST_Request $request Request object.
-	 * @return WP_REST_Response|WP_Error
-	 */
-	public function add_pane_to_component( $request ) {
-		$parent_id         = $request->get_param( 'parent_id' );
-		$pane_data         = $request->get_json_params();
-		$component_factory = spider_boxes()->get_container()->get( 'componentFactory' );
-
-		$pane_id = $component_factory->add_pane_to_accordion( $parent_id, $pane_data );
-
-		if ( empty( $pane_id ) ) {
-			return new WP_Error( 'pane_creation_failed', 'Failed to create pane', array( 'status' => 500 ) );
-		}
-
-		return rest_ensure_response(
-			array(
-				'success' => true,
-				'pane_id' => $pane_id,
-			)
-		);
-	}
-
-	/**
-	 * Add column to row component
-	 *
-	 * @param WP_REST_Request $request Request object.
-	 * @return WP_REST_Response|WP_Error
-	 */
-	public function add_column_to_component( $request ) {
-		$parent_id         = $request->get_param( 'parent_id' );
-		$column_data       = $request->get_json_params();
-		$component_factory = spider_boxes()->get_container()->get( 'componentFactory' );
-
-		$column_id = $component_factory->add_column_to_row( $parent_id, $column_data );
-
-		if ( empty( $column_id ) ) {
-			return new WP_Error( 'column_creation_failed', 'Failed to create column', array( 'status' => 500 ) );
-		}
-
-		return rest_ensure_response(
-			array(
-				'success'   => true,
-				'column_id' => $column_id,
-			)
-		);
-	}
-
-	/**
-	 * Remove child from parent component
-	 *
-	 * @param WP_REST_Request $request Request object.
-	 * @return WP_REST_Response|WP_Error
-	 */
-	public function remove_child_from_component( $request ) {
-		$parent_id         = $request->get_param( 'parent_id' );
-		$child_id          = $request->get_param( 'child_id' );
-		$component_factory = spider_boxes()->get_container()->get( 'componentFactory' );
-
-		$result = $component_factory->remove_child_from_parent( $parent_id, $child_id );
-
-		if ( ! $result ) {
-			return new WP_Error( 'child_removal_failed', 'Failed to remove child from parent', array( 'status' => 500 ) );
-		}
-
-		return rest_ensure_response(
-			array(
-				'success' => true,
 			)
 		);
 	}

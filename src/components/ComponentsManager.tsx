@@ -16,9 +16,8 @@ interface Component {
   context?: string;
   settings?: Record<string, any>;
   children?: Record<string, any>;
-  sort_order?: number;
   is_active?: boolean;
-  capability?: string;
+
   created_at?: string;
   updated_at?: string;
 }
@@ -26,8 +25,7 @@ interface Component {
 interface ComponentType {
   id: string;
   name: string;
-  class_name: string;
-  category: string;
+  class_name?: string;
   icon: string;
   description: string;
   supports: string[];
@@ -54,12 +52,11 @@ export const ComponentsManager: React.FC = () => {
     queryKey: ["component-types"],
     queryFn: () => get("/component-types"),
   });
-
   // Extract component types from the response and convert to array format
   const componentTypes = Object.entries(componentTypesResponse.component_types || {}).map(([id, type]: [string, any]) => ({
     id,
-    name: type.class?.split("\\").pop() || id,
-    class_name: type.class || "",
+    name: type.name || type.class_name?.split("\\").pop() || id,
+    class_name: type.class_name || "",
     category: type.category || "general",
     icon: type.icon || "🔧",
     description: type.description || "",
@@ -106,9 +103,7 @@ export const ComponentsManager: React.FC = () => {
       context: "default",
       settings: {},
       children: {},
-      sort_order: 0,
       is_active: true,
-      capability: "manage_options",
     });
     setIsDialogOpen(true);
   };

@@ -55,12 +55,12 @@ class DatabaseTest extends TestCase {
 			'id'          => 'test_field_type',
 			'name'        => 'Test Field Type',
 			'class_name'  => 'SpiderBoxes\\Fields\\TestField',
-			'category'    => 'test',
+
 			'icon'        => 'test-icon',
 			'description' => 'A test field type for unit testing.',
 			'supports'    => array( 'validation', 'default_value' ),
 			'is_active'   => true,
-			'sort_order'  => 10,
+
 		);
 
 		// Test registration
@@ -100,7 +100,7 @@ class DatabaseTest extends TestCase {
 				'placeholder' => 'Enter text here...',
 				'validation'  => array( 'required' => true ),
 			),
-			'capability'  => 'manage_options',
+
 		);
 
 		// Test saving configuration
@@ -191,11 +191,10 @@ class DatabaseTest extends TestCase {
 			'type'        => '<script>alert("xss")</script>text',
 			'title'       => '<h1>Malicious Title</h1>',
 			'description' => '<script>alert("xss")</script>Description',
-			'parent'      => 'test<script>',
+
 			'context'     => 'post<script>',
 			'value'       => 'safe value',
-			'capability'  => 'manage_options<script>',
-			'sort_order'  => '10abc',
+
 		);
 
 		$sanitized = DatabaseManager::sanitize_field_config( $dirty_config );
@@ -204,7 +203,6 @@ class DatabaseTest extends TestCase {
 		$this->assertEquals( 'text', $sanitized['type'] );
 		$this->assertEquals( 'Malicious Title', $sanitized['title'] );
 		$this->assertEquals( 'Description', $sanitized['description'] );
-		$this->assertEquals( 10, $sanitized['sort_order'] );
 	}
 
 	/**

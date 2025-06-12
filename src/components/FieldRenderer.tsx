@@ -1,6 +1,6 @@
 import React from "react";
-import {motion} from "framer-motion";
-import {cn} from "../utils/cn";
+import { motion } from "framer-motion";
+import { cn } from "../utils/cn";
 
 interface FieldConfig {
   id: string;
@@ -17,9 +17,9 @@ interface FieldConfig {
     min?: number;
     max?: number;
   };
-  options?: Array<{label: string; value: string}>;
+  options?: Array<{ label: string; value: string }>;
   multiple?: boolean;
-  className?: string;
+  class_name?: string;
   [key: string]: any;
 }
 
@@ -32,14 +32,7 @@ interface FieldRendererProps {
   disabled?: boolean;
 }
 
-export const FieldRenderer: React.FC<FieldRendererProps> = ({
-  config,
-  value,
-  onChange,
-  onBlur,
-  error,
-  disabled = false,
-}) => {
+export const FieldRenderer: React.FC<FieldRendererProps> = ({ config, value, onChange, onBlur, error, disabled = false }) => {
   const handleChange = (newValue: any) => {
     if (onChange) {
       onChange(newValue);
@@ -94,9 +87,7 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
             multiple={config.multiple}
             {...commonProps}
           >
-            {!config.required && !config.multiple && (
-              <option value="">Select an option</option>
-            )}
+            {!config.required && !config.multiple && <option value="">Select an option</option>}
             {config.options?.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
@@ -114,19 +105,13 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
                   <input
                     type="checkbox"
                     value={option.value}
-                    checked={
-                      Array.isArray(value)
-                        ? value.includes(option.value)
-                        : false
-                    }
+                    checked={Array.isArray(value) ? value.includes(option.value) : false}
                     onChange={(e) => {
                       const currentValue = Array.isArray(value) ? value : [];
                       if (e.target.checked) {
                         handleChange([...currentValue, option.value]);
                       } else {
-                        handleChange(
-                          currentValue.filter((v) => v !== option.value)
-                        );
+                        handleChange(currentValue.filter((v) => v !== option.value));
                       }
                     }}
                     {...commonProps}
@@ -136,12 +121,7 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
               ))
             ) : (
               <label className="checkbox-item">
-                <input
-                  type="checkbox"
-                  checked={Boolean(value)}
-                  onChange={(e) => handleChange(e.target.checked)}
-                  {...commonProps}
-                />
+                <input type="checkbox" checked={Boolean(value)} onChange={(e) => handleChange(e.target.checked)} {...commonProps} />
                 <span className="checkbox-label">{config.label}</span>
               </label>
             )}
@@ -297,9 +277,7 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
               {...commonProps}
               className={cn("field-wysiwyg", config.className)}
             />
-            <div className="wysiwyg-note">
-              Rich text editor would be rendered here in full implementation
-            </div>
+            <div className="wysiwyg-note">Rich text editor would be rendered here in full implementation</div>
           </div>
         );
 
@@ -317,11 +295,7 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
                       <span className="media-name">{value.name}</span>
                     </div>
                   )}
-                  <button
-                    type="button"
-                    onClick={() => handleChange(null)}
-                    className="media-remove"
-                  >
+                  <button type="button" onClick={() => handleChange(null)} className="media-remove">
                     Remove
                   </button>
                 </div>
@@ -362,55 +336,41 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
               className="switcher-input"
             />
             <span className="switcher-slider"></span>
-            {config.label && (
-              <span className="switcher-label">{config.label}</span>
-            )}
+            {config.label && <span className="switcher-label">{config.label}</span>}
           </label>
         );
 
       default:
-        return (
-          <div className="field-unsupported">
-            Unsupported field type: {config.type}
-          </div>
-        );
+        return <div className="field-unsupported">Unsupported field type: {config.type}</div>;
     }
   };
 
   return (
     <motion.div
-      className={cn(
-        "field-wrapper",
-        `field-type-${config.type}`,
-        error && "field-has-error"
-      )}
-      initial={{opacity: 0, y: 10}}
-      animate={{opacity: 1, y: 0}}
-      exit={{opacity: 0, y: -10}}
-      transition={{duration: 0.2}}
+      className={cn("field-wrapper", `field-type-${config.type}`, error && "field-has-error")}
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -10 }}
+      transition={{ duration: 0.2 }}
     >
-      {config.label &&
-        config.type !== "checkbox" &&
-        config.type !== "switcher" && (
-          <label htmlFor={config.id} className="field-label">
-            {config.label}
-            {config.required && <span className="field-required">*</span>}
-          </label>
-        )}
+      {config.label && config.type !== "checkbox" && config.type !== "switcher" && (
+        <label htmlFor={config.id} className="field-label">
+          {config.label}
+          {config.required && <span className="field-required">*</span>}
+        </label>
+      )}
 
       <div className="field-control">{renderField()}</div>
 
-      {config.description && (
-        <div className="field-description">{config.description}</div>
-      )}
+      {config.description && <div className="field-description">{config.description}</div>}
 
       {error && (
         <motion.div
           className="field-error-message"
-          initial={{opacity: 0, scale: 0.9}}
-          animate={{opacity: 1, scale: 1}}
-          exit={{opacity: 0, scale: 0.9}}
-          transition={{duration: 0.2}}
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.9 }}
+          transition={{ duration: 0.2 }}
         >
           {error}
         </motion.div>

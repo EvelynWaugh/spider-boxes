@@ -123,7 +123,7 @@ class SectionRegistry {
 			'components'    => array(),
 			'context'       => 'default',
 			'screen'        => '',
-			'capability'    => 'manage_options',
+
 			'priority'      => 'default',
 			'callback_args' => null,
 		);

@@ -131,7 +131,7 @@ class FieldRegistry {
 			array(
 				'class'    => '',
 				'supports' => array(),
-				'category' => 'general',
+
 			)
 		);
 
@@ -170,7 +170,7 @@ class FieldRegistry {
 			'class'       => '',
 			'label'       => '',
 			'context'     => 'default',
-			'capability'  => 'manage_options',
+
 		);
 
 		$args = wp_parse_args( $args, $defaults );
@@ -200,6 +200,78 @@ class FieldRegistry {
 	 */
 	public function get_field_types() {
 		return apply_filters( 'spider_boxes_get_field_types', $this->field_types );
+	}
+
+	/**
+	 * Get all field types (combined from registry and database)
+	 *
+	 * @return array Array of field types with database overrides
+	 */
+	public function get_all_field_types() {
+		$registry_field_types = $this->field_types;
+		$db_field_types       = \SpiderBoxes\Database\DatabaseManager::get_db_field_types();
+
+		// Combine both sources - registry types with database overrides
+		$combined_field_types = array();
+
+		// First add all registry types (these represent available field classes)
+		foreach ( $registry_field_types as $type => $config ) {
+			$combined_field_types[] = array(
+				'id'          => $type,
+				'name'        => ucwords( str_replace( array( '_', '-' ), ' ', $type ) ),
+				'type'        => $type,
+				'class_name'  => $config['class'] ?? '',
+
+				'description' => $config['description'] ?? '',
+				'supports'    => $config['supports'] ?? array(),
+				'meta_field'  => $config['meta_field'] ?? false,
+				'is_active'   => true,
+
+			);
+		}
+
+		// Then merge/override with database types (these can override or add custom types)
+		$db_types_by_id = array();
+		foreach ( $db_field_types as $db_type ) {
+			$db_types_by_id[ $db_type['id'] ] = array_merge( $db_type, array( 'meta_field' => false ) );
+		}
+
+		// Update registry types with database data if exists
+		foreach ( $combined_field_types as &$type ) {
+			if ( isset( $db_types_by_id[ $type['id'] ] ) ) {
+				$db_type = $db_types_by_id[ $type['id'] ];
+				$type    = array_merge( $type, $db_type );
+				unset( $db_types_by_id[ $type['id'] ] );
+			}
+		}
+
+		// Add any remaining database-only types
+		foreach ( $db_types_by_id as $db_type ) {
+			$combined_field_types[] = $db_type;
+		}
+
+		// Filter only active types and sort
+		$active_field_types = array_filter(
+			$combined_field_types,
+			function ( $type ) {
+				return $type['is_active'] ?? true;
+			}
+		);
+
+		// Sort by sort_order then by name
+		usort(
+			$active_field_types,
+			function ( $a, $b ) {
+				$sort_a = $a['sort_order'] ?? 0;
+				$sort_b = $b['sort_order'] ?? 0;
+				if ( $sort_a === $sort_b ) {
+					return strcmp( $a['name'] ?? '', $b['name'] ?? '' );
+				}
+				return $sort_a <=> $sort_b;
+			}
+		);
+
+		return apply_filters( 'spider_boxes_get_all_field_types', $active_field_types );
 	}
 
 	/**

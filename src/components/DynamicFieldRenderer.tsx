@@ -604,6 +604,21 @@ export const DynamicFieldRenderer: React.FC<DynamicFieldRendererProps> = ({
           </div>
         );
 
+      case "number":
+        return (
+          <div>
+            <input
+              type="number"
+              value={currentValue || 0}
+              onChange={(e) => handleChange(e.target.value)}
+              onBlur={handleBlur}
+              placeholder={field.placeholder}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+            />
+            {showErrors && <div className="mt-1 text-sm text-red-600">{errors.join(", ")}</div>}
+          </div>
+        );
+
       case "textarea":
         return (
           <div>

@@ -51,7 +51,7 @@ $field_config = array(
 		'placeholder' => 'Enter text here...',
 		'validation'  => array( 'required' => true ),
 	),
-	'capability'  => 'manage_options',
+
 );
 
 $result = DatabaseManager::save_field_config( 'test_field_config', $field_config );

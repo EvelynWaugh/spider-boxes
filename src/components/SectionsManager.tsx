@@ -15,9 +15,8 @@ interface Section {
   screen?: string;
   settings?: Record<string, any>;
   components?: Record<string, any>;
-  sort_order?: number;
   is_active?: boolean;
-  capability: string;
+
   created_at?: string;
   updated_at?: string;
 }
@@ -25,8 +24,7 @@ interface Section {
 interface SectionType {
   id: string;
   name: string;
-  class_name: string;
-  category: string;
+  class_name?: string;
   description: string;
   supports: string[];
 }
@@ -50,13 +48,11 @@ export const SectionsManager: React.FC = () => {
     queryKey: ["section-types"],
     queryFn: () => get("/section-types"),
   });
-
   // Extract section types from the response and convert to array format
   const sectionTypes = Object.entries(sectionTypesResponse.section_types || {}).map(([id, type]: [string, any]) => ({
     id,
-    name: type.class?.split("\\").pop() || id,
-    class_name: type.class || "",
-    category: type.category || "general",
+    name: type.name || type.class_name?.split("\\").pop() || id,
+    class_name: type.class_name || "",
     description: type.description || "",
     supports: type.supports || [],
   }));
@@ -96,10 +92,9 @@ export const SectionsManager: React.FC = () => {
       description: "",
       context: "default",
       screen: "",
-      capability: "manage_options",
+
       settings: {},
       components: {},
-      sort_order: 0,
       is_active: true,
     });
     setIsDialogOpen(true);
@@ -188,7 +183,7 @@ export const SectionsManager: React.FC = () => {
               </div>{" "}
               <div className="section-meta">
                 <span className="section-context">Context: {section.context}</span>
-                <span className="section-capability">Capability: {section.capability}</span>
+
                 <span className="section-component-count">{Object.keys(section.components || {}).length} components</span>
               </div>
               <div className="section-actions">
@@ -289,24 +284,6 @@ export const SectionsManager: React.FC = () => {
                 }}
                 value={sectionForm.screen || ""}
                 onChange={(value) => updateFormField("screen", value)}
-              />
-
-              <FieldRenderer
-                config={{
-                  id: "capability",
-                  type: "select",
-                  label: "Required Capability",
-                  required: true,
-                  options: [
-                    { label: "Manage Options", value: "manage_options" },
-                    { label: "Edit Posts", value: "edit_posts" },
-                    { label: "Edit Pages", value: "edit_pages" },
-                    { label: "Edit Users", value: "edit_users" },
-                    { label: "Manage WooCommerce", value: "manage_woocommerce" },
-                  ],
-                }}
-                value={sectionForm.capability || "manage_options"}
-                onChange={(value) => updateFormField("capability", value)}
               />
             </div>
 

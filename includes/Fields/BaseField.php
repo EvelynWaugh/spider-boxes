@@ -51,8 +51,10 @@ abstract class BaseField {
 			'class'       => '',
 			'label'       => '',
 			'show_tip'    => true,
+			'validation'  => array(),
+			'condition'   => array(),
 			'context'     => 'default',
-			'capability'  => 'manage_options',
+
 		);
 	}
 

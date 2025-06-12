@@ -7,6 +7,8 @@
 
 namespace SpiderBoxes\Database;
 
+use StellarWP\DB\DB;
+
 /**
  * Handles database operations for Spider Boxes
  */
@@ -16,7 +18,7 @@ class DatabaseManager {
 	 *
 	 * @var string
 	 */
-	protected static $db_table_version = '1.1.0';
+	protected static $db_table_version = '1.1.4';
 
 	/**
 	 * Create custom database tables
@@ -33,29 +35,30 @@ class DatabaseManager {
 		$charset_collate = $wpdb->get_charset_collate();
 
 		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+
+		// parent can be string or integer. Integer in database as reference to parent. In fieldRegistry we can use string.
+
 		// Field configurations table.
 		$fields_table = $wpdb->prefix . 'spider_boxes_fields';
 		$fields_sql   = "CREATE TABLE $fields_table (
-			id varchar(255) NOT NULL,
+			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
 			type varchar(50) NOT NULL,
+			name varchar(255) NOT NULL,
 			title varchar(255) NOT NULL,
 			description text,
-			parent varchar(255) DEFAULT '',
 			context varchar(50) DEFAULT 'default',
 			value longtext,
 			settings longtext,
-			capability varchar(100) DEFAULT 'manage_options',
 			created_at datetime DEFAULT CURRENT_TIMESTAMP,
 			updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 			PRIMARY KEY (id),
 			KEY type (type),
-			KEY parent (parent),
 			KEY context (context)
 		) $charset_collate;";
 
 		// Field values/meta table for storing field data values.
-		$meta_table        = $wpdb->prefix . 'spider_boxes_meta';
-		$meta_sql          = "CREATE TABLE $meta_table (
+		$meta_table = $wpdb->prefix . 'spider_boxes_meta';
+		$meta_sql   = "CREATE TABLE $meta_table (
 			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
 			object_id bigint(20) unsigned NOT NULL,
 			object_type varchar(50) NOT NULL,
@@ -69,102 +72,131 @@ class DatabaseManager {
 			KEY object_type (object_type),
 			KEY meta_key (meta_key),
 			KEY context (context)
-		) $charset_collate;";       // Field types table for registered field types.
+		) $charset_collate;";
+		// Field types table for registered field types.
 		$field_types_table = $wpdb->prefix . 'spider_boxes_field_types';
 		$field_types_sql   = "CREATE TABLE $field_types_table (
-			id varchar(255) NOT NULL,
+			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
 			name varchar(255) NOT NULL,
-			class_name varchar(255) NOT NULL,
-			category varchar(100) DEFAULT 'general',
+			class_name varchar(255) DEFAULT NULL,
 			icon varchar(100) DEFAULT 'component',
 			description text,
 			supports longtext,
 			is_active tinyint(1) DEFAULT 1,
-			sort_order int(11) DEFAULT 0,
 			created_at datetime DEFAULT CURRENT_TIMESTAMP,
 			updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 			PRIMARY KEY (id),
-			UNIQUE KEY class_name (class_name),
-			KEY category (category),
-			KEY is_active (is_active),
-			KEY sort_order (sort_order)
+			KEY is_active (is_active)
+		) $charset_collate;";
+
+		// Component types table for registered component types.
+		$component_types_table = $wpdb->prefix . 'spider_boxes_component_types';
+		$component_types_sql   = "CREATE TABLE $component_types_table (
+			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+			name varchar(255) NOT NULL,
+			class_name varchar(255) DEFAULT NULL,
+			icon varchar(100) DEFAULT 'component',
+			description text,
+			supports longtext,
+			is_active tinyint(1) DEFAULT 1,
+			created_at datetime DEFAULT CURRENT_TIMESTAMP,
+			updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+			PRIMARY KEY (id),
+			KEY is_active (is_active)
+		) $charset_collate;";
+
+		// Section types table for registered section types.
+		$section_types_table = $wpdb->prefix . 'spider_boxes_section_types';
+		$section_types_sql   = "CREATE TABLE $section_types_table (
+			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+			name varchar(255) NOT NULL,
+			class_name varchar(255) DEFAULT NULL,
+			icon varchar(100) DEFAULT 'section',
+			description text,
+			supports longtext,
+			is_active tinyint(1) DEFAULT 1,
+			created_at datetime DEFAULT CURRENT_TIMESTAMP,
+			updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+			PRIMARY KEY (id),
+			KEY is_active (is_active)
 		) $charset_collate;";
 
 		// Components table for component configurations.
 		$components_table = $wpdb->prefix . 'spider_boxes_components';
 		$components_sql   = "CREATE TABLE $components_table (
-			id varchar(255) NOT NULL,
+			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
 			type varchar(50) NOT NULL,
 			title varchar(255) NOT NULL,
 			description text,
-			parent_id varchar(255) DEFAULT '',
-			section_id varchar(255) DEFAULT '',
 			context varchar(50) DEFAULT 'default',
 			settings longtext,
-			children longtext,
-			sort_order int(11) DEFAULT 0,
 			is_active tinyint(1) DEFAULT 1,
-			capability varchar(100) DEFAULT 'manage_options',
 			created_at datetime DEFAULT CURRENT_TIMESTAMP,
 			updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 			PRIMARY KEY (id),
 			KEY type (type),
-			KEY parent_id (parent_id),
-			KEY section_id (section_id),
 			KEY context (context),
-			KEY sort_order (sort_order),
 			KEY is_active (is_active)
 		) $charset_collate;";
 
 		// Sections table for section configurations.
 		$sections_table = $wpdb->prefix . 'spider_boxes_sections';
 		$sections_sql   = "CREATE TABLE $sections_table (
-			id varchar(255) NOT NULL,
+			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
 			type varchar(50) NOT NULL,
 			title varchar(255) NOT NULL,
 			description text,
 			context varchar(50) DEFAULT 'default',
 			screen varchar(100) DEFAULT '',
 			settings longtext,
-			components longtext,
-			sort_order int(11) DEFAULT 0,
 			is_active tinyint(1) DEFAULT 1,
-			capability varchar(100) DEFAULT 'manage_options',
 			created_at datetime DEFAULT CURRENT_TIMESTAMP,
 			updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 			PRIMARY KEY (id),
 			KEY type (type),
 			KEY context (context),
 			KEY screen (screen),
-			KEY sort_order (sort_order),
 			KEY is_active (is_active)
 		) $charset_collate;";
+
 		if ( version_compare( $db_version, self::$db_table_version, '<' ) ) {
 			dbDelta( $fields_sql );
 			dbDelta( $meta_sql );
 			dbDelta( $field_types_sql );
+			dbDelta( $component_types_sql );
+			dbDelta( $section_types_sql );
 			dbDelta( $components_sql );
 			dbDelta( $sections_sql );
-			// Insert default field types.
 
 			update_option( 'spider_boxes_db_version', self::$db_table_version );
 		}
 	}
+
+
+	/**
+	 * Get all available field types (combined from registry and database)
+	 *
+	 * @return array Array of field types.
+	 */
+	public static function get_field_types() {
+		// Use the field registry to get combined field types
+		$field_registry = spider_boxes()->get_container()->get( 'fieldRegistry' );
+		return $field_registry->get_all_field_types();
+	}
+
 
 	/**
 	 * Get all available field types from database
 	 *
 	 * @return array Array of field types.
 	 */
-	public static function get_field_types() {
-		global $wpdb;
+	public static function get_db_field_types() {
 
-		$field_types_table = $wpdb->prefix . 'spider_boxes_field_types';
-
-		$results = $wpdb->get_results(
-			"SELECT * FROM $field_types_table WHERE is_active = 1 ORDER BY sort_order ASC, name ASC", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-			ARRAY_A // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
-		);
+		$results = DB::table( 'spider_boxes_field_types' )
+		->select( '*' )
+		->where( 'is_active', 1 )
+		->orderBy( 'name' )
+		->getAll();
 
 		if ( ! $results ) {
 			return array();
@@ -178,6 +210,17 @@ class DatabaseManager {
 		return $results;
 	}
 
+
+	/**
+	 * Get field type by type identifier
+	 */
+	public static function get_field_type_by_type( $type ) {
+		return DB::table( 'spider_boxes_field_types' )
+			->where( 'type', $type )
+			->where( 'is_active', 1 )
+			->get();
+	}
+
 	/**
 	 * Register a new field type
 	 *
@@ -185,12 +228,9 @@ class DatabaseManager {
 	 * @return bool Success status.
 	 */
 	public static function register_field_type( $field_type ) {
-		global $wpdb;
-
-		$field_types_table = $wpdb->prefix . 'spider_boxes_field_types';
 
 		// Validate required fields.
-		$required_fields = array( 'id', 'name', 'class_name' );
+		$required_fields = array( 'type', 'name' );
 		foreach ( $required_fields as $field ) {
 			if ( empty( $field_type[ $field ] ) ) {
 				return false;
@@ -201,12 +241,12 @@ class DatabaseManager {
 		$field_type = wp_parse_args(
 			$field_type,
 			array(
-				'category'    => 'general',
+
 				'icon'        => 'component',
 				'description' => '',
 				'supports'    => wp_json_encode( array() ),
 				'is_active'   => 1,
-				'sort_order'  => 0,
+
 			)
 		);
 
@@ -214,71 +254,65 @@ class DatabaseManager {
 		if ( is_array( $field_type['supports'] ) ) {
 			$field_type['supports'] = wp_json_encode( $field_type['supports'] );
 		}
+		try {
+				// Check if field type already exists
+				$existing = DB::table( 'spider_boxes_field_types' )
+					->where( 'type', $field_type['type'] )
+					->get();
 
-		// Insert or update.
-		$existing = $wpdb->get_var(
-			$wpdb->prepare(
-				"SELECT id FROM $field_types_table WHERE id = %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-				$field_type['id']
-			)
-		);
+			if ( $existing ) {
+				// Update existing field type
+				$update_data = $field_type;
+				unset( $update_data['type'] ); // Don't update the type field
 
-		if ( $existing ) {
-			unset( $field_type['created_at'] );
-			$result = $wpdb->update(
-				$field_types_table,
-				$field_type,
-				array( 'id' => $field_type['id'] )
-			); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
-		} else {
-			$result = $wpdb->insert( $field_types_table, $field_type ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
+				$result = DB::table( 'spider_boxes_field_types' )
+					->where( 'type', $field_type['type'] )
+					->update( $update_data );
+			} else {
+				// Insert new field type
+				$result = DB::table( 'spider_boxes_field_types' )
+					->insert( $field_type );
+			}
+
+				return $result !== false;
+
+		} catch ( \Exception $e ) {
+			error_log( 'Spider Boxes: Failed to register field type: ' . $e->getMessage() );
+			return false;
 		}
-
-		return false !== $result;
 	}
 
 	/**
 	 * Save field configuration to database
 	 *
-	 * @param string $field_id Field ID.
-	 * @param array  $field_config Field configuration.
+	 * @param integer|string $field_id Field ID.
+	 * @param array          $field_config Field configuration.
 	 * @return bool Success status.
 	 */
 	public static function save_field_config( $field_id, $field_config ) {
-		global $wpdb;
-
-		$fields_table = $wpdb->prefix . 'spider_boxes_fields';
 
 		// Prepare data for insertion.
 		$data = array(
-			'id'          => $field_id,
+
+			'name'        => $field_config['name'] ?? '',
 			'type'        => $field_config['type'] ?? '',
 			'title'       => $field_config['title'] ?? '',
 			'description' => $field_config['description'] ?? '',
-			'parent'      => $field_config['parent'] ?? '',
+
 			'context'     => $field_config['context'] ?? 'default',
 			'value'       => maybe_serialize( $field_config['value'] ?? '' ),
-			'settings'    => wp_json_encode( $field_config ),
-			'capability'  => $field_config['capability'] ?? 'manage_options',
+			'settings'    => '',
+
 		);
 
-		// Check if field exists.
-		$existing = $wpdb->get_var(
-			$wpdb->prepare(
-				"SELECT id FROM $fields_table WHERE id = %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-				$field_id
-			)
-		);
-
-		if ( $existing ) {
-			unset( $data['created_at'] );
-			$result = $wpdb->update(
-				$fields_table,
-				$data,
-				array( 'id' => $field_id )
-			); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
+		if ( $field_id === 'new' ) {
+			$result = DB::table( 'spider_boxes_fields' )
+				->insert( $data );
 		} else {
-			$result = $wpdb->insert( $fields_table, $data ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
+
+			$result = DB::table( 'spider_boxes_fields' )
+				->where( 'id', $field_id )
+				->update( $data );
 		}
 
 		return false !== $result;
@@ -287,7 +321,7 @@ class DatabaseManager {
 	/**
 	 * Get field configuration from database
 	 *
-	 * @param string $field_id Field ID.
+	 * @param integer $field_id Field ID.
 	 * @return array|null Field configuration or null if not found.
 	 */
 	public static function get_field_config( $field_id ) {
@@ -297,8 +331,39 @@ class DatabaseManager {
 
 		$result = $wpdb->get_row(
 			$wpdb->prepare(
-				"SELECT * FROM $fields_table WHERE id = %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				"SELECT * FROM $fields_table WHERE id = %d", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 				$field_id
+			),
+			ARRAY_A
+		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
+
+		if ( ! $result ) {
+			return null;
+		}
+
+		// Decode JSON settings.
+		$result['settings'] = json_decode( $result['settings'], true );
+		$result['value']    = maybe_unserialize( $result['value'] );
+
+		return $result;
+	}
+
+
+	/**
+	 * Get field configuration from database by name
+	 *
+	 * @param string $name Field Name.
+	 * @return array|null Field configuration or null if not found.
+	 */
+	public static function get_field_config_by_name( $name ) {
+		global $wpdb;
+
+		$fields_table = $wpdb->prefix . 'spider_boxes_fields';
+
+		$result = $wpdb->get_row(
+			$wpdb->prepare(
+				"SELECT * FROM $fields_table WHERE name = %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				$name
 			),
 			ARRAY_A
 		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
@@ -518,17 +583,13 @@ class DatabaseManager {
 		$errors = array();
 
 		// Required fields.
-		$required_fields = array( 'id', 'type', 'title' );
+		$required_fields = array( 'id', 'name', 'type', 'title' );
 		foreach ( $required_fields as $field ) {
 			if ( empty( $field_config[ $field ] ) ) {
 				$errors[] = sprintf( 'Missing required field: %s', $field );
 			}
 		}
 
-		// Validate field ID format.
-		if ( ! empty( $field_config['id'] ) && ! preg_match( '/^[a-zA-Z0-9_-]+$/', $field_config['id'] ) ) {
-			$errors[] = 'Field ID can only contain letters, numbers, underscores, and hyphens';
-		}
 		// Check if field type is registered.
 		if ( ! empty( $field_config['type'] ) ) {
 			$field_types      = self::get_field_types();
@@ -538,22 +599,17 @@ class DatabaseManager {
 			}
 		}
 
-		// Validate capability.
-		if ( ! empty( $field_config['capability'] ) && ! current_user_can( $field_config['capability'] ) ) {
-			$errors[] = 'You do not have permission to create this field';
-		}
-
 		if ( ! empty( $errors ) ) {
-			return new WP_Error( 'validation_failed', 'Field validation failed', array( 'errors' => $errors ) );
+			return new \WP_Error( 'validation_failed', 'Field validation failed', array( 'errors' => $errors ) );
 		}
 
 		// Set defaults for optional fields.
 		$defaults = array(
 			'description' => '',
-			'parent'      => '',
+
 			'context'     => 'default',
 			'value'       => '',
-			'capability'  => 'manage_options',
+
 		);
 
 		return wp_parse_args( $field_config, $defaults );
@@ -571,6 +627,11 @@ class DatabaseManager {
 		// Sanitize field ID.
 		if ( isset( $field_config['id'] ) ) {
 			$sanitized['id'] = sanitize_key( $field_config['id'] );
+		}
+
+		// Sanitize field name.
+		if ( isset( $field_config['name'] ) ) {
+			$sanitized['name'] = sanitize_key( $field_config['name'] );
 		}
 
 		// Sanitize field type.
@@ -596,11 +657,6 @@ class DatabaseManager {
 		// Sanitize context.
 		if ( isset( $field_config['context'] ) ) {
 			$sanitized['context'] = sanitize_key( $field_config['context'] );
-		}
-
-		// Sanitize capability.
-		if ( isset( $field_config['capability'] ) ) {
-			$sanitized['capability'] = sanitize_key( $field_config['capability'] );
 		}
 
 		// Value can be mixed, so we'll serialize it.
@@ -635,14 +691,12 @@ class DatabaseManager {
 			'type'        => $component_config['type'],
 			'title'       => $component_config['title'],
 			'description' => $component_config['description'] ?? '',
-			'parent_id'   => $component_config['parent_id'] ?? '',
-			'section_id'  => $component_config['section_id'] ?? '',
+
 			'context'     => $component_config['context'] ?? 'default',
 			'settings'    => wp_json_encode( $component_config['settings'] ?? array() ),
-			'children'    => wp_json_encode( $component_config['children'] ?? array() ),
-			'sort_order'  => $component_config['sort_order'] ?? 0,
+
 			'is_active'   => $component_config['is_active'] ?? 1,
-			'capability'  => $component_config['capability'] ?? 'manage_options',
+
 		);
 
 		// Check if component exists.
@@ -690,9 +744,30 @@ class DatabaseManager {
 			return null;
 		}
 
-		// Decode JSON settings and children.
+		// Decode JSON settings.
 		$result['settings'] = json_decode( $result['settings'], true );
-		$result['children'] = json_decode( $result['children'], true );
+
+		return $result;
+	}
+
+	/**
+	 * Get component configuration from database
+	 *
+	 * @param type $component_id Component ID.
+	 * @return array|false|null Component configuration or null if not found.
+	 */
+	public static function get_component_by_type( $type ) {
+		global $wpdb;
+
+		$components_table = $wpdb->prefix . 'spider_boxes_components';
+
+		$result = $wpdb->get_row(
+			$wpdb->prepare(
+				"SELECT * FROM $components_table WHERE type = %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				$type
+			),
+			ARRAY_A
+		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
 
 		return $result;
 	}
@@ -733,7 +808,7 @@ class DatabaseManager {
 			$where_clause = 'WHERE ' . implode( ' AND ', $where_conditions );
 		}
 
-		$sql = "SELECT * FROM $components_table $where_clause ORDER BY sort_order ASC, created_at ASC"; // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$sql = "SELECT * FROM $components_table $where_clause ORDER BY created_at ASC"; // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 
 		if ( ! empty( $prepare_values ) ) {
 			$sql = $wpdb->prepare( $sql, $prepare_values ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
@@ -745,10 +820,10 @@ class DatabaseManager {
 			return array();
 		}
 
-		// Decode JSON settings and children for each component.
+		// Decode JSON settings for each component.
 		foreach ( $results as &$component ) {
 			$component['settings'] = json_decode( $component['settings'], true );
-			$component['children'] = json_decode( $component['children'], true );
+
 		}
 
 		return $results;
@@ -808,10 +883,7 @@ class DatabaseManager {
 			'context'     => $section_config['context'] ?? 'default',
 			'screen'      => $section_config['screen'] ?? '',
 			'settings'    => wp_json_encode( $section_config['settings'] ?? array() ),
-			'components'  => wp_json_encode( $section_config['components'] ?? array() ),
-			'sort_order'  => $section_config['sort_order'] ?? 0,
 			'is_active'   => $section_config['is_active'] ?? 1,
-			'capability'  => $section_config['capability'] ?? 'manage_options',
 		);
 
 		// Check if section exists.
@@ -860,8 +932,7 @@ class DatabaseManager {
 		}
 
 		// Decode JSON settings and components.
-		$result['settings']   = json_decode( $result['settings'], true );
-		$result['components'] = json_decode( $result['components'], true );
+		$result['settings'] = json_decode( $result['settings'], true );
 
 		return $result;
 	}
@@ -896,7 +967,7 @@ class DatabaseManager {
 			$where_clause = 'WHERE ' . implode( ' AND ', $where_conditions );
 		}
 
-		$sql = "SELECT * FROM $sections_table $where_clause ORDER BY sort_order ASC, created_at ASC"; // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$sql = "SELECT * FROM $sections_table $where_clause ORDER BY created_at ASC"; // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 
 		if ( ! empty( $prepare_values ) ) {
 			$sql = $wpdb->prepare( $sql, $prepare_values ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
@@ -910,8 +981,8 @@ class DatabaseManager {
 
 		// Decode JSON settings and components for each section.
 		foreach ( $results as &$section ) {
-			$section['settings']   = json_decode( $section['settings'], true );
-			$section['components'] = json_decode( $section['components'], true );
+			$section['settings'] = json_decode( $section['settings'], true );
+
 		}
 
 		return $results;
@@ -946,6 +1017,177 @@ class DatabaseManager {
 			array( 'id' => $section_id ),
 			array( '%s' )
 		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
+
+		return false !== $result;
+	}
+
+	/**
+	 * Get all available component types from database
+	 *
+	 * @return array Array of component types.
+	 */
+	public static function get_component_types() {
+		global $wpdb;
+
+		$component_types_table = $wpdb->prefix . 'spider_boxes_component_types';
+
+		$results = $wpdb->get_results(
+			"SELECT * FROM $component_types_table WHERE is_active = 1 ORDER BY  name ASC", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			ARRAY_A // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
+		);
+
+		if ( ! $results ) {
+			return array();
+		}
+
+		// Decode supports JSON for each component type.
+		foreach ( $results as &$component_type ) {
+			$component_type['supports'] = json_decode( $component_type['supports'], true );
+
+		}
+
+		return $results;
+	}
+
+	/**
+	 * Register a new component type
+	 *
+	 * @param array $component_type Component type configuration.
+	 * @return bool Success status.
+	 */
+	public static function register_component_type( $component_type ) {
+		global $wpdb;
+
+		$component_types_table = $wpdb->prefix . 'spider_boxes_component_types';
+
+		// Validate required fields.
+		$required_fields = array( 'type', 'name' );
+		foreach ( $required_fields as $field ) {
+			if ( empty( $component_type[ $field ] ) ) {
+				return false;
+			}
+		}
+
+		// Set defaults.
+		$component_type = wp_parse_args(
+			$component_type,
+			array(
+				'icon'        => 'component',
+				'description' => '',
+				'supports'    => wp_json_encode( array() ),
+				'is_active'   => 1,
+			)
+		);
+
+		// Encode supports if they are arrays.
+		if ( is_array( $component_type['supports'] ) ) {
+			$component_type['supports'] = wp_json_encode( $component_type['supports'] );
+		}
+
+		// Insert or update.
+		$existing = $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT id FROM $component_types_table WHERE id = %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				$component_type['id']
+			)
+		);
+
+		if ( $existing ) {
+			unset( $component_type['created_at'] );
+			$result = $wpdb->update(
+				$component_types_table,
+				$component_type,
+				array( 'id' => $component_type['id'] )
+			); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
+		} else {
+			$result = $wpdb->insert( $component_types_table, $component_type ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
+		}
+
+		return false !== $result;
+	}
+
+	/**
+	 * Get all available section types from database
+	 *
+	 * @return array Array of section types.
+	 */
+	public static function get_section_types() {
+		global $wpdb;
+
+		$section_types_table = $wpdb->prefix . 'spider_boxes_section_types';
+
+		$results = $wpdb->get_results(
+			"SELECT * FROM $section_types_table WHERE is_active = 1 ORDER BY  name ASC", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			ARRAY_A // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
+		);
+
+		if ( ! $results ) {
+			return array();
+		}
+
+		// Decode supports JSON for each section type.
+		foreach ( $results as &$section_type ) {
+			$section_type['supports'] = json_decode( $section_type['supports'], true );
+		}
+
+		return $results;
+	}
+
+	/**
+	 * Register a new section type
+	 *
+	 * @param array $section_type Section type configuration.
+	 * @return bool Success status.
+	 */
+	public static function register_section_type( $section_type ) {
+		global $wpdb;
+
+		$section_types_table = $wpdb->prefix . 'spider_boxes_section_types';
+
+		// Validate required fields.
+		$required_fields = array( 'type', 'name' );
+		foreach ( $required_fields as $field ) {
+			if ( empty( $section_type[ $field ] ) ) {
+				return false;
+			}
+		}
+
+		// Set defaults.
+		$section_type = wp_parse_args(
+			$section_type,
+			array(
+
+				'icon'        => 'section',
+				'description' => '',
+				'supports'    => wp_json_encode( array() ),
+				'is_active'   => 1,
+
+			)
+		);
+
+		// Encode supports if it's an array.
+		if ( is_array( $section_type['supports'] ) ) {
+			$section_type['supports'] = wp_json_encode( $section_type['supports'] );
+		}
+
+		// Insert or update.
+		$existing = $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT id FROM $section_types_table WHERE id = %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				$section_type['id']
+			)
+		);
+
+		if ( $existing ) {
+			unset( $section_type['created_at'] );
+			$result = $wpdb->update(
+				$section_types_table,
+				$section_type,
+				array( 'id' => $section_type['id'] )
+			); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
+		} else {
+			$result = $wpdb->insert( $section_types_table, $section_type ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
+		}
 
 		return false !== $result;
 	}

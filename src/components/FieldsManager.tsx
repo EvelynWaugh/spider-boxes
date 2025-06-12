@@ -1,35 +1,29 @@
-import {useState} from "react";
-import {useQuery, useMutation, useQueryClient} from "@tanstack/react-query";
-import {motion} from "framer-motion";
-import {PlusIcon, PencilIcon, TrashIcon} from "@/components/icons";
-import {Button} from "./ui/Button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/Dialog";
-import {FieldForm, type FieldData} from "@/components/forms/FieldForm";
-import {useAPI} from "@/hooks/useAPI";
-import {doAction} from "@/hooks/createHooks";
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { motion } from "framer-motion";
+import { PlusIcon, PencilIcon, TrashIcon } from "@/components/icons";
+import { Button } from "./ui/Button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/Dialog";
+import { FieldForm, type FieldData } from "@/components/forms/FieldForm";
+import { useAPI } from "@/hooks/useAPI";
+import { doAction } from "@/hooks/createHooks";
 
 interface Field {
-  id: string;
+  id: number | string; //actual id or 'new' for new fields
+  name: string;
   type: string;
   title: string;
   description: string;
-  parent: string;
   value: any;
   context: string;
 }
 
 // Convert Field to FieldData format
-const convertFieldToFieldData = (
-  field: Field | null
-): FieldData | undefined => {
+const convertFieldToFieldData = (field: Field | null): FieldData | undefined => {
   if (!field) return undefined;
   return {
     id: field.id,
+    name: field.name,
     type: field.type,
     label: field.title,
     description: field.description,
@@ -40,12 +34,12 @@ const convertFieldToFieldData = (
 // Convert FieldData to Field format
 const convertFieldDataToField = (fieldData: FieldData): Partial<Field> => {
   const field: Partial<Field> = {
-    id: fieldData.id, // Always include the ID (generated or existing)
+    id: fieldData.id, // Always include the ID ('new' or existing)
+    name: fieldData.name,
     type: fieldData.type,
     title: fieldData.label,
     description: fieldData.description || "",
     value: fieldData.default_value,
-    parent: "", // Default empty parent
     context: "default", // Default context
   };
 
@@ -57,14 +51,14 @@ export function FieldsManager() {
   const [editingField, setEditingField] = useState<Field | null>(null);
   const queryClient = useQueryClient();
   const api = useAPI();
-  const {data: fields = [], isLoading} = useQuery({
+  const { data: fields = [], isLoading } = useQuery({
     queryKey: ["fields"],
     queryFn: () => api.get("/fields"),
   });
   const createFieldMutation = useMutation({
     mutationFn: (fieldData: Partial<Field>) => api.post("/fields", fieldData),
     onSuccess: () => {
-      queryClient.invalidateQueries({queryKey: ["fields"]});
+      queryClient.invalidateQueries({ queryKey: ["fields"] });
       setIsFormOpen(false);
       setEditingField(null); // Reset editing field on success
       doAction("spiderBoxes.fieldCreated");
@@ -74,10 +68,9 @@ export function FieldsManager() {
     },
   });
   const updateFieldMutation = useMutation({
-    mutationFn: ({id, ...fieldData}: Partial<Field> & {id: string}) =>
-      api.put(`/fields/${id}`, fieldData),
+    mutationFn: ({ id, ...fieldData }: Partial<Field> & { id: string }) => api.put(`/fields/${id}`, fieldData),
     onSuccess: () => {
-      queryClient.invalidateQueries({queryKey: ["fields"]});
+      queryClient.invalidateQueries({ queryKey: ["fields"] });
       setIsFormOpen(false);
       setEditingField(null);
       doAction("spiderBoxes.fieldUpdated");
@@ -90,7 +83,7 @@ export function FieldsManager() {
   const deleteFieldMutation = useMutation({
     mutationFn: (id: string) => api.del(`/fields/${id}`),
     onSuccess: () => {
-      queryClient.invalidateQueries({queryKey: ["fields"]});
+      queryClient.invalidateQueries({ queryKey: ["fields"] });
       doAction("spiderBoxes.fieldDeleted");
     },
   });
@@ -119,7 +112,7 @@ export function FieldsManager() {
     updateFieldMutation.reset();
   };
 
-  const handleDeleteField = (id: string) => {
+  const handleDeleteField = (id: number) => {
     if (confirm("Are you sure you want to delete this field?")) {
       deleteFieldMutation.mutate(id);
     }
@@ -138,7 +131,7 @@ export function FieldsManager() {
 
     if (editingField) {
       console.log("Updating existing field:", editingField.id);
-      updateFieldMutation.mutate({...fieldToSave, id: editingField.id});
+      updateFieldMutation.mutate({ ...fieldToSave, id: editingField.id });
     } else {
       console.log("Creating new field");
       createFieldMutation.mutate(fieldToSave);
@@ -173,9 +166,7 @@ export function FieldsManager() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-medium text-gray-900">Fields</h2>
-          <p className="text-sm text-gray-600">
-            Manage individual fields that can be used in components.
-          </p>
+          <p className="text-sm text-gray-600">Manage individual fields that can be used in components.</p>
         </div>
         <Button onClick={handleCreateField} className="spider-boxes-button">
           <PlusIcon className="w-4 h-4 mr-2" />
@@ -196,7 +187,7 @@ export function FieldsManager() {
             <div className="spider-boxes-table-header-cell">Field ID</div>
             <div className="spider-boxes-table-header-cell">Title</div>
             <div className="spider-boxes-table-header-cell">Type</div>
-            <div className="spider-boxes-table-header-cell">Parent</div>
+
             <div className="spider-boxes-table-header-cell">Context</div>
             <div className="spider-boxes-table-header-cell">Actions</div>
           </div>
@@ -205,42 +196,24 @@ export function FieldsManager() {
               <motion.div
                 key={field.id}
                 layout
-                initial={{opacity: 0}}
-                animate={{opacity: 1}}
-                exit={{opacity: 0}}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
                 className="spider-boxes-table-row"
               >
-                <div className="spider-boxes-table-cell font-mono text-xs bg-gray-50">
-                  {field.id}
-                </div>
-                <div className="spider-boxes-table-cell font-medium">
-                  {field.title || field.id}
-                </div>
+                <div className="spider-boxes-table-cell font-mono text-xs bg-gray-50">{field.id}</div>
+                <div className="spider-boxes-table-cell font-medium">{field.title || field.id}</div>
                 <div className="spider-boxes-table-cell">
-                  <span className="spider-boxes-badge spider-boxes-badge-success">
-                    {field.type}
-                  </span>
+                  <span className="spider-boxes-badge spider-boxes-badge-success">{field.type}</span>
                 </div>
-                <div className="spider-boxes-table-cell text-gray-500">
-                  {field.parent || "—"}
-                </div>
-                <div className="spider-boxes-table-cell text-gray-500">
-                  {field.context}
-                </div>
+
+                <div className="spider-boxes-table-cell text-gray-500">{field.context}</div>
                 <div className="spider-boxes-table-cell">
                   <div className="flex space-x-2">
-                    <button
-                      onClick={() => handleEditField(field)}
-                      className="text-primary-600 hover:text-primary-900"
-                      title="Edit field"
-                    >
+                    <button onClick={() => handleEditField(field)} className="text-primary-600 hover:text-primary-900" title="Edit field">
                       <PencilIcon className="w-4 h-4" />
                     </button>
-                    <button
-                      onClick={() => handleDeleteField(field.id)}
-                      className="text-red-600 hover:text-red-900"
-                      title="Delete field"
-                    >
+                    <button onClick={() => handleDeleteField(field.id)} className="text-red-600 hover:text-red-900" title="Delete field">
                       <TrashIcon className="w-4 h-4" />
                     </button>
                   </div>
@@ -253,21 +226,14 @@ export function FieldsManager() {
       <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
         <DialogContent size="lg">
           <DialogHeader>
-            <DialogTitle>
-              {editingField ? "Edit Field" : "Create New Field"}
-            </DialogTitle>
+            <DialogTitle>{editingField ? "Edit Field" : "Create New Field"}</DialogTitle>
           </DialogHeader>
           <FieldForm
             field={convertFieldToFieldData(editingField)}
             onSave={handleFormSubmit}
             onCancel={handleCloseForm}
-            error={
-              getErrorMessage(createFieldMutation.error) ||
-              getErrorMessage(updateFieldMutation.error)
-            }
-            isLoading={
-              createFieldMutation.isPending || updateFieldMutation.isPending
-            }
+            error={getErrorMessage(createFieldMutation.error) || getErrorMessage(updateFieldMutation.error)}
+            isLoading={createFieldMutation.isPending || updateFieldMutation.isPending}
           />
         </DialogContent>
       </Dialog>
