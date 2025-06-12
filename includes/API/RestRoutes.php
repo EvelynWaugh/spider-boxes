@@ -608,7 +608,7 @@ class RestRoutes {
 		}
 
 		// Validate required fields.
-		$required_fields = array( 'type', 'name' );
+		$required_fields = array( 'name' );
 		foreach ( $required_fields as $field ) {
 			if ( empty( $params[ $field ] ) ) {
 				// translators: %s is the field name.
@@ -622,8 +622,8 @@ class RestRoutes {
 
 		// Check if field type already exists.
 		$existing_types       = DatabaseManager::get_field_types();
-		$existing_field_types = wp_list_pluck( $existing_types, 'type' );
-		if ( in_array( $params['type'], $existing_field_types, true ) ) {
+		$existing_field_types = wp_list_pluck( $existing_types, 'name' );
+		if ( in_array( $params['name'], $existing_field_types, true ) ) {
 			return new WP_Error(
 				'field_type_exists',
 				__( 'Field type already exists', 'spider-boxes' ),
@@ -632,7 +632,7 @@ class RestRoutes {
 		}
 		// Sanitize input data.
 		$field_type_data = array(
-			'type'        => sanitize_key( $params['type'] ),
+
 			'name'        => sanitize_text_field( $params['name'] ),
 			'class_name'  => sanitize_text_field( $params['class_name'] ?? '' ),
 			'icon'        => sanitize_text_field( $params['icon'] ?? 'component' ),

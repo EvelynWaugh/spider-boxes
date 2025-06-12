@@ -6,15 +6,17 @@ import { Button } from "./ui/Button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/Dialog";
 import { FieldForm, type FieldData } from "@/components/forms/FieldForm";
 import { useAPI } from "@/hooks/useAPI";
-import { doAction } from "@/hooks/createHooks";
+import { doAction, applyFilters } from "@/hooks/createHooks";
 
+// Field - used in FieldsManager (backend/API structure)
 interface Field {
-  id: number | string; //actual id or 'new' for new fields
+  id: string; //actual id or 'new' for new fields
   name: string;
   type: string;
   title: string;
   description: string;
   value: any;
+  settings: Record<string, any>;
   context: string;
 }
 
@@ -28,6 +30,15 @@ const convertFieldToFieldData = (field: Field | null): FieldData | undefined => 
     label: field.title,
     description: field.description,
     default_value: field.value,
+    settings: {
+      meta_field: field.settings.meta_field,
+      placeholder: field.settings.placeholder,
+      validation: field.settings.validation,
+      condition: field.settings.condition,
+
+      ...field.settings, // Include any additional settings
+    },
+    context: field.context,
   };
 };
 
@@ -40,6 +51,15 @@ const convertFieldDataToField = (fieldData: FieldData): Partial<Field> => {
     title: fieldData.label,
     description: fieldData.description || "",
     value: fieldData.default_value,
+    settings: {
+      // Merge existing settings with new ones
+      ...(fieldData.settings || {}),
+      meta_field: fieldData.settings?.meta_field || false,
+      placeholder: fieldData.settings?.placeholder || "",
+      validation: fieldData.settings?.validation || {},
+      ...(fieldData.settings?.condition ? { condition: fieldData.settings?.condition } : {}),
+      ...(fieldData.options ? { options: fieldData.options } : {}), // Include options if provided
+    },
     context: "default", // Default context
   };
 
@@ -98,6 +118,7 @@ export function FieldsManager() {
 
   const handleEditField = (field: Field) => {
     setEditingField(field);
+    // console.log("Editing field:", field);
     setIsFormOpen(true);
     // Reset any previous errors
     createFieldMutation.reset();
@@ -112,7 +133,7 @@ export function FieldsManager() {
     updateFieldMutation.reset();
   };
 
-  const handleDeleteField = (id: number) => {
+  const handleDeleteField = (id: string) => {
     if (confirm("Are you sure you want to delete this field?")) {
       deleteFieldMutation.mutate(id);
     }
@@ -123,18 +144,24 @@ export function FieldsManager() {
     const fieldToSave = convertFieldDataToField(fieldData);
     console.log("Converted field data:", fieldToSave);
 
-    // Ensure we have all required fields
-    if (!fieldToSave.id || !fieldToSave.title || !fieldToSave.type) {
-      console.error("Missing required fields: id, title and type are required");
+    // Validate required fields
+    const requiredFields = ["type", "name"];
+    const missingFields = requiredFields.filter((field) => !fieldToSave[field as keyof Field]);
+
+    if (missingFields.length > 0) {
+      console.error(`Missing required fields: ${missingFields.join(", ")}`);
       return;
     }
 
-    if (editingField) {
+    // Apply filters for extensibility (following your coding instructions)
+    const processedField = applyFilters("spiderBoxes.fieldToSave", fieldToSave, editingField) as Partial<Field>;
+
+    if (editingField && editingField.id !== "new") {
       console.log("Updating existing field:", editingField.id);
-      updateFieldMutation.mutate({ ...fieldToSave, id: editingField.id });
+      updateFieldMutation.mutate({ ...processedField, id: editingField.id });
     } else {
       console.log("Creating new field");
-      createFieldMutation.mutate(fieldToSave);
+      createFieldMutation.mutate(processedField);
     }
   };
 
@@ -185,6 +212,7 @@ export function FieldsManager() {
         <div className="spider-boxes-table">
           <div className="spider-boxes-table-header">
             <div className="spider-boxes-table-header-cell">Field ID</div>
+            <div className="spider-boxes-table-header-cell">Name</div>
             <div className="spider-boxes-table-header-cell">Title</div>
             <div className="spider-boxes-table-header-cell">Type</div>
 
@@ -202,6 +230,7 @@ export function FieldsManager() {
                 className="spider-boxes-table-row"
               >
                 <div className="spider-boxes-table-cell font-mono text-xs bg-gray-50">{field.id}</div>
+                <div className="spider-boxes-table-cell font-mono text-xs bg-gray-50">{field.name}</div>
                 <div className="spider-boxes-table-cell font-medium">{field.title || field.id}</div>
                 <div className="spider-boxes-table-cell">
                   <span className="spider-boxes-badge spider-boxes-badge-success">{field.type}</span>
@@ -222,7 +251,7 @@ export function FieldsManager() {
             ))}
           </div>
         </div>
-      )}{" "}
+      )}
       <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
         <DialogContent size="lg">
           <DialogHeader>

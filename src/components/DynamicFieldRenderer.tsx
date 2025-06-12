@@ -434,6 +434,7 @@ interface DynamicFieldRendererProps {
   field: DynamicField;
   asyncOptions?: boolean;
   // value: any;
+  onChange?: (value: any) => void; // Changed to a simpler callback
   // onChange: (fieldId: string, isMeta: boolean | undefined, value: any) => void;
   formApi: FormApi<any, any>;
   validationRules?: {
@@ -450,7 +451,7 @@ interface DynamicFieldRendererProps {
 export const DynamicFieldRenderer: React.FC<DynamicFieldRendererProps> = ({
   field,
   //   value,
-  //   onChange,
+  onChange,
   asyncOptions,
   formApi,
   validationRules,
@@ -585,7 +586,7 @@ export const DynamicFieldRenderer: React.FC<DynamicFieldRendererProps> = ({
     handleChange: (value: any) => void,
     handleBlur?: () => void,
     errors?: string[],
-    isTouched: boolean,
+    isTouched?: boolean,
   ) => {
     const showErrors = isTouched && errors && errors.length > 0;
     switch (field.type) {
@@ -637,7 +638,15 @@ export const DynamicFieldRenderer: React.FC<DynamicFieldRendererProps> = ({
       case "select":
         return (
           <div>
-            <Select value={currentValue || ""} onValueChange={(value) => handleChange(value)}>
+            <Select
+              value={currentValue || ""}
+              onValueChange={(value) => {
+                handleChange(value);
+                if (onChange) {
+                  onChange(value);
+                }
+              }}
+            >
               <SelectTrigger className="w-full">
                 <SelectValue placeholder={field.placeholder || "Choose a status..."} />
               </SelectTrigger>

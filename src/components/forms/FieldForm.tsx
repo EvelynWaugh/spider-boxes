@@ -3,9 +3,10 @@ import { useForm } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "../ui/Button";
 import { SaveIcon, XIcon } from "@/components/icons";
-import { DynamicFieldRenderer, DynamicField } from "../DynamicFieldRenderer";
+import { DynamicFieldRenderer, type DynamicField } from "../DynamicFieldRenderer";
 import { useAPI } from "@/hooks/useAPI";
 
+// FieldData - used in FieldForm (frontend form structure)
 export interface FieldData {
   id?: string;
   name?: string;
@@ -14,7 +15,9 @@ export interface FieldData {
   description?: string;
   required?: boolean;
   default_value?: any;
+  settings?: Record<string, any>;
   options?: any;
+  context?: string; // Optional context for the field (e.g., 'review', 'product')
 }
 
 interface FieldFormProps {
@@ -37,15 +40,7 @@ interface FieldType {
 export const FieldForm: React.FC<FieldFormProps> = ({ field, onSave, onCancel, error, isLoading = false }) => {
   const { get } = useAPI();
 
-  // Generate a unique ID for new fields
-  const generateFieldId = (label: string): string => {
-    const baseId = label
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "_")
-      .replace(/^_+|_+$/g, "");
-    const timestamp = Date.now().toString(36);
-    return `field_${baseId}_${timestamp}`;
-  }; // Fetch field types from the backend
+  // Fetch field types from the backend
   const { data: fieldTypesData = [], isLoading: isLoadingFieldTypes } = useQuery({
     queryKey: ["field-types"],
     queryFn: () => get("/field-types"),
@@ -60,7 +55,7 @@ export const FieldForm: React.FC<FieldFormProps> = ({ field, onSave, onCancel, e
       description: field?.description || "",
       required: field?.required || false,
       default_value: field?.default_value || "",
-      options: field?.options || {},
+      options: field?.options || "",
     },
     onSubmit: async ({ value }) => {
       // Validate required fields
@@ -89,7 +84,8 @@ export const FieldForm: React.FC<FieldFormProps> = ({ field, onSave, onCancel, e
 
       onSave(formData);
     },
-  }); // Fetch field type configuration when type is selected
+  });
+  // Fetch field type configuration when type is selected
   const [selectedType, setSelectedType] = React.useState(field?.type || "");
   const { data: fieldTypeConfig } = useQuery({
     queryKey: ["field-type-config", selectedType],
@@ -124,11 +120,15 @@ export const FieldForm: React.FC<FieldFormProps> = ({ field, onSave, onCancel, e
       validation: configField.validation,
     }));
   }, [fieldTypeConfig, form]);
+
+  //   console.log(dynamicFields, "Dynamic Fields Configured");
+
   // Create field type selection field
   const typeField: DynamicField = {
     id: "type",
     type: "select",
     title: "Field Type",
+    placeholder: "Select a field type",
     description: "Select the type of field to create",
     value: selectedType,
     required: true,
@@ -139,32 +139,6 @@ export const FieldForm: React.FC<FieldFormProps> = ({ field, onSave, onCancel, e
       };
       return acc;
     }, {}),
-  };
-  // Handle field changes
-  const handleFieldChange = (fieldId: string, value: any) => {
-    // Update form field value
-    if (fieldId === "type") {
-      form.setFieldValue("type", value);
-      setSelectedType(value);
-      form.setFieldValue("options", {});
-    } else if (fieldId === "label") {
-      form.setFieldValue("label", value);
-    } else if (fieldId === "description") {
-      form.setFieldValue("description", value);
-    } else if (fieldId === "required") {
-      form.setFieldValue("required", value);
-    } else if (fieldId === "default_value") {
-      form.setFieldValue("default_value", value);
-    } else if (fieldId === "options") {
-      form.setFieldValue("options", value);
-    } else {
-      // For dynamic fields, store in options object
-      const currentOptions = form.getFieldValue("options") || {};
-      form.setFieldValue("options", {
-        ...currentOptions,
-        [fieldId]: value,
-      });
-    }
   };
 
   const requiredNameField: DynamicField = {
@@ -177,14 +151,6 @@ export const FieldForm: React.FC<FieldFormProps> = ({ field, onSave, onCancel, e
     validation: {
       pattern: /^[a-z0-9_]+$/,
     },
-  };
-
-  const metaField: DynamicField = {
-    id: "meta_field",
-    type: "checkbox",
-    title: "Is Meta Field",
-    description: "Check if this field is a meta field.",
-    value: false,
   };
 
   return (
@@ -218,21 +184,21 @@ export const FieldForm: React.FC<FieldFormProps> = ({ field, onSave, onCancel, e
           <div className="p-4 text-center text-gray-500">Loading field types...</div>
         ) : (
           <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700">{typeField.title}</label>
-            {typeField.description && <p className="text-sm text-gray-500">{typeField.description}</p>}
-            <select
-              value={selectedType}
-              onChange={(e) => handleFieldChange("type", e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              required={typeField.required}
-            >
-              <option value="">Select field type...</option>
-              {Object.entries(typeField.options || {}).map(([key, option]: [string, any]) => (
-                <option key={key} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+            <DynamicFieldRenderer
+              key={typeField.id}
+              field={typeField}
+              formApi={form}
+              validationRules={{
+                required: typeField.required,
+                ...typeField.validation,
+              }}
+              onChange={(value) => {
+                form.setFieldValue("type", value);
+                setSelectedType(value);
+                // Clear options when type changes since different types have different configs
+                form.setFieldValue("options", "");
+              }}
+            />
           </div>
         )}
 

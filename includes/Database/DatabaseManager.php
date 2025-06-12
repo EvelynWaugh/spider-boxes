@@ -230,7 +230,7 @@ class DatabaseManager {
 	public static function register_field_type( $field_type ) {
 
 		// Validate required fields.
-		$required_fields = array( 'type', 'name' );
+		$required_fields = array( 'name' );
 		foreach ( $required_fields as $field ) {
 			if ( empty( $field_type[ $field ] ) ) {
 				return false;
@@ -244,7 +244,7 @@ class DatabaseManager {
 
 				'icon'        => 'component',
 				'description' => '',
-				'supports'    => wp_json_encode( array() ),
+				'supports'    => maybe_serialize( array() ),
 				'is_active'   => 1,
 
 			)
@@ -252,21 +252,21 @@ class DatabaseManager {
 
 		// Encode supports if it's an array.
 		if ( is_array( $field_type['supports'] ) ) {
-			$field_type['supports'] = wp_json_encode( $field_type['supports'] );
+			$field_type['supports'] = maybe_serialize( $field_type['supports'] );
 		}
 		try {
 				// Check if field type already exists
 				$existing = DB::table( 'spider_boxes_field_types' )
-					->where( 'type', $field_type['type'] )
+					->where( 'name', $field_type['name'] )
 					->get();
 
 			if ( $existing ) {
 				// Update existing field type
 				$update_data = $field_type;
-				unset( $update_data['type'] ); // Don't update the type field
+				unset( $update_data['name'] ); // Don't update the name field
 
 				$result = DB::table( 'spider_boxes_field_types' )
-					->where( 'type', $field_type['type'] )
+					->where( 'name', $field_type['name'] )
 					->update( $update_data );
 			} else {
 				// Insert new field type
@@ -301,7 +301,7 @@ class DatabaseManager {
 
 			'context'     => $field_config['context'] ?? 'default',
 			'value'       => maybe_serialize( $field_config['value'] ?? '' ),
-			'settings'    => '',
+			'settings'    => maybe_serialize( $field_config['settings'] ?? array() ),
 
 		);
 
@@ -342,7 +342,7 @@ class DatabaseManager {
 		}
 
 		// Decode JSON settings.
-		$result['settings'] = json_decode( $result['settings'], true );
+		$result['settings'] = maybe_unserialize( $result['settings'] );
 		$result['value']    = maybe_unserialize( $result['value'] );
 
 		return $result;
@@ -373,7 +373,7 @@ class DatabaseManager {
 		}
 
 		// Decode JSON settings.
-		$result['settings'] = json_decode( $result['settings'], true );
+		$result['settings'] = maybe_unserialize( $result['settings'] );
 		$result['value']    = maybe_unserialize( $result['value'] );
 
 		return $result;
@@ -467,47 +467,42 @@ class DatabaseManager {
 	 * @return array Array of field configurations.
 	 */
 	public static function get_all_fields( $parent = '', $context = '' ) {
-		global $wpdb;
+		try {
+			$query = DB::table( 'spider_boxes_fields' )
+			->select( '*' );
 
-		$fields_table = $wpdb->prefix . 'spider_boxes_fields';
+			// Add conditional where clauses
+			if ( ! empty( $parent ) ) {
+				$query->where( 'parent', $parent );
+			}
 
-		$where_conditions = array();
-		$prepare_values   = array();
+			if ( ! empty( $context ) ) {
+				$query->where( 'context', $context );
+			}
 
-		if ( ! empty( $parent ) ) {
-			$where_conditions[] = 'parent = %s';
-			$prepare_values[]   = $parent;
-		}
+			$results = $query
+			->orderBy( 'created_at', 'ASC' )
+			->getAll();
 
-		if ( ! empty( $context ) ) {
-			$where_conditions[] = 'context = %s';
-			$prepare_values[]   = $context;
-		}
+			if ( ! $results ) {
+				return array();
+			}
 
-		$where_clause = '';
-		if ( ! empty( $where_conditions ) ) {
-			$where_clause = 'WHERE ' . implode( ' AND ', $where_conditions );
-		}
+			// Convert objects to arrays and decode JSON settings and unserialize values
+			$fields = array();
+			foreach ( $results as $field ) {
+				$field_array             = (array) $field;
+				$field_array['settings'] = maybe_unserialize( $field_array['settings'] );
+				$field_array['value']    = maybe_unserialize( $field_array['value'] );
+				$fields[]                = $field_array;
+			}
 
-		$sql = "SELECT * FROM $fields_table $where_clause ORDER BY created_at ASC"; // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			return apply_filters( 'spider_boxes_get_db_fields', $fields, $parent, $context );
 
-		if ( ! empty( $prepare_values ) ) {
-			$sql = $wpdb->prepare( $sql, $prepare_values ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-		}
-
-		$results = $wpdb->get_results( $sql, ARRAY_A ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.PreparedSQL.NotPrepared
-
-		if ( ! $results ) {
+		} catch ( \Exception $e ) {
+			error_log( 'Spider Boxes: Failed to get all fields: ' . $e->getMessage() );
 			return array();
 		}
-
-		// Decode JSON settings and unserialize values for each field.
-		foreach ( $results as &$field ) {
-			$field['settings'] = json_decode( $field['settings'], true );
-			$field['value']    = maybe_unserialize( $field['value'] );
-		}
-
-		return $results;
 	}
 	/**
 	 * Delete field configuration from database
@@ -593,7 +588,7 @@ class DatabaseManager {
 		// Check if field type is registered.
 		if ( ! empty( $field_config['type'] ) ) {
 			$field_types      = self::get_field_types();
-			$registered_types = wp_list_pluck( $field_types, 'id' );
+			$registered_types = wp_list_pluck( $field_types, 'name' );
 			if ( ! in_array( $field_config['type'], $registered_types, true ) ) {
 				$errors[] = sprintf( 'Invalid field type: %s', $field_config['type'] );
 			}
@@ -693,7 +688,7 @@ class DatabaseManager {
 			'description' => $component_config['description'] ?? '',
 
 			'context'     => $component_config['context'] ?? 'default',
-			'settings'    => wp_json_encode( $component_config['settings'] ?? array() ),
+			'settings'    => maybe_serialize( $component_config['settings'] ?? array() ),
 
 			'is_active'   => $component_config['is_active'] ?? 1,
 
@@ -745,7 +740,7 @@ class DatabaseManager {
 		}
 
 		// Decode JSON settings.
-		$result['settings'] = json_decode( $result['settings'], true );
+		$result['settings'] = maybe_unserialize( $result['settings'] );
 
 		return $result;
 	}
@@ -822,7 +817,7 @@ class DatabaseManager {
 
 		// Decode JSON settings for each component.
 		foreach ( $results as &$component ) {
-			$component['settings'] = json_decode( $component['settings'], true );
+			$component['settings'] = maybe_unserialize( $component['settings'] );
 
 		}
 
@@ -882,7 +877,7 @@ class DatabaseManager {
 			'description' => $section_config['description'] ?? '',
 			'context'     => $section_config['context'] ?? 'default',
 			'screen'      => $section_config['screen'] ?? '',
-			'settings'    => wp_json_encode( $section_config['settings'] ?? array() ),
+			'settings'    => maybe_serialize( $section_config['settings'] ?? array() ),
 			'is_active'   => $section_config['is_active'] ?? 1,
 		);
 
@@ -932,7 +927,7 @@ class DatabaseManager {
 		}
 
 		// Decode JSON settings and components.
-		$result['settings'] = json_decode( $result['settings'], true );
+		$result['settings'] = maybe_unserialize( $result['settings'] );
 
 		return $result;
 	}
@@ -981,7 +976,7 @@ class DatabaseManager {
 
 		// Decode JSON settings and components for each section.
 		foreach ( $results as &$section ) {
-			$section['settings'] = json_decode( $section['settings'], true );
+			$section['settings'] = maybe_unserialize( $section['settings'] );
 
 		}
 
@@ -1074,14 +1069,14 @@ class DatabaseManager {
 			array(
 				'icon'        => 'component',
 				'description' => '',
-				'supports'    => wp_json_encode( array() ),
+				'supports'    => maybe_serialize( array() ),
 				'is_active'   => 1,
 			)
 		);
 
 		// Encode supports if they are arrays.
 		if ( is_array( $component_type['supports'] ) ) {
-			$component_type['supports'] = wp_json_encode( $component_type['supports'] );
+			$component_type['supports'] = maybe_serialize( $component_type['supports'] );
 		}
 
 		// Insert or update.
@@ -1159,7 +1154,7 @@ class DatabaseManager {
 
 				'icon'        => 'section',
 				'description' => '',
-				'supports'    => wp_json_encode( array() ),
+				'supports'    => maybe_serialize( array() ),
 				'is_active'   => 1,
 
 			)
@@ -1167,7 +1162,7 @@ class DatabaseManager {
 
 		// Encode supports if it's an array.
 		if ( is_array( $section_type['supports'] ) ) {
-			$section_type['supports'] = wp_json_encode( $section_type['supports'] );
+			$section_type['supports'] = maybe_serialize( $section_type['supports'] );
 		}
 
 		// Insert or update.
