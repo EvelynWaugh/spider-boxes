@@ -4,67 +4,10 @@ import { motion } from "framer-motion";
 import { PlusIcon, PencilIcon, TrashIcon } from "@/components/icons";
 import { Button } from "./ui/Button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/Dialog";
-import { FieldForm, type FieldData } from "@/components/forms/FieldForm";
+import { FieldForm } from "./forms/FieldForm";
 import { useAPI } from "@/hooks/useAPI";
 import { doAction, applyFilters } from "@/hooks/createHooks";
-
-// Field - used in FieldsManager (backend/API structure)
-interface Field {
-  id: string; //actual id or 'new' for new fields
-  name: string;
-  type: string;
-  title: string;
-  description: string;
-  value: any;
-  settings: Record<string, any>;
-  context: string;
-}
-
-// Convert Field to FieldData format
-const convertFieldToFieldData = (field: Field | null): FieldData | undefined => {
-  if (!field) return undefined;
-  return {
-    id: field.id,
-    name: field.name,
-    type: field.type,
-    label: field.title,
-    description: field.description,
-    default_value: field.value,
-    settings: {
-      meta_field: field.settings.meta_field,
-      placeholder: field.settings.placeholder,
-      validation: field.settings.validation,
-      condition: field.settings.condition,
-
-      ...field.settings, // Include any additional settings
-    },
-    context: field.context,
-  };
-};
-
-// Convert FieldData to Field format
-const convertFieldDataToField = (fieldData: FieldData): Partial<Field> => {
-  const field: Partial<Field> = {
-    id: fieldData.id, // Always include the ID ('new' or existing)
-    name: fieldData.name,
-    type: fieldData.type,
-    title: fieldData.label,
-    description: fieldData.description || "",
-    value: fieldData.default_value,
-    settings: {
-      // Merge existing settings with new ones
-      ...(fieldData.settings || {}),
-      meta_field: fieldData.settings?.meta_field || false,
-      placeholder: fieldData.settings?.placeholder || "",
-      validation: fieldData.settings?.validation || {},
-      ...(fieldData.settings?.condition ? { condition: fieldData.settings?.condition } : {}),
-      ...(fieldData.options ? { options: fieldData.options } : {}), // Include options if provided
-    },
-    context: "default", // Default context
-  };
-
-  return field;
-};
+import { convertFieldToFieldData, type Field, type FieldData } from "@/utils/field";
 
 export function FieldsManager() {
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -138,15 +81,15 @@ export function FieldsManager() {
       deleteFieldMutation.mutate(id);
     }
   };
-  const handleFormSubmit = (fieldData: FieldData) => {
+  const handleFormSubmit = (fieldData: Field) => {
     console.log("Form submitted with data:", fieldData);
 
-    const fieldToSave = convertFieldDataToField(fieldData);
-    console.log("Converted field data:", fieldToSave);
+    //const fieldToSave = convertFieldDataToField(fieldData);
+    //console.log("Converted field data:", fieldToSave);
 
     // Validate required fields
     const requiredFields = ["type", "name"];
-    const missingFields = requiredFields.filter((field) => !fieldToSave[field as keyof Field]);
+    const missingFields = requiredFields.filter((field) => !fieldData[field as keyof Field]);
 
     if (missingFields.length > 0) {
       console.error(`Missing required fields: ${missingFields.join(", ")}`);
@@ -154,7 +97,7 @@ export function FieldsManager() {
     }
 
     // Apply filters for extensibility (following your coding instructions)
-    const processedField = applyFilters("spiderBoxes.fieldToSave", fieldToSave, editingField) as Partial<Field>;
+    const processedField = applyFilters("spiderBoxes.fieldToSave", fieldData, editingField) as Field;
 
     if (editingField && editingField.id !== "new") {
       console.log("Updating existing field:", editingField.id);

@@ -144,12 +144,12 @@ class RepeaterField extends BaseField {
 		$field_type  = $field_config['type'] ?? 'text';
 		$field_class = $field_registry->get_field_type( $field_type );
 
-		if ( ! $field_class || ! class_exists( $field_class['class'] ) ) {
+		if ( ! $field_class || ! class_exists( $field_class['class_name'] ) ) {
 			return '<p>' . sprintf( __( 'Field type "%s" not found', 'spider-boxes' ), $field_type ) . '</p>';
 		}
 
 		$field_config['name'] = $field_name;
-		$field_instance       = new $field_class['class']( $field_id, $field_config );
+		$field_instance       = new $field_class['class_name']( $field_id, $field_config );
 
 		return $field_instance->render( $field_value );
 	}
@@ -310,8 +310,8 @@ class RepeaterField extends BaseField {
 					$field_type         = $field_config['type'] ?? 'text';
 					$field_class_config = $field_registry->get_field_type( $field_type );
 
-					if ( $field_class_config && class_exists( $field_class_config['class'] ) ) {
-						$field_instance              = new $field_class_config['class']( $field_id, $field_config );
+					if ( $field_class_config && class_exists( $field_class_config['class_name'] ) ) {
+						$field_instance              = new $field_class_config['class_name']( $field_id, $field_config );
 						$sanitized_item[ $field_id ] = $field_instance->sanitize( $item[ $field_id ] );
 					} else {
 						$sanitized_item[ $field_id ] = sanitize_text_field( $item[ $field_id ] );
@@ -373,8 +373,8 @@ class RepeaterField extends BaseField {
 					$field_type         = $field_config['type'] ?? 'text';
 					$field_class_config = $field_registry->get_field_type( $field_type );
 
-					if ( $field_class_config && class_exists( $field_class_config['class'] ) ) {
-						$field_instance = new $field_class_config['class']( $field_id, $field_config );
+					if ( $field_class_config && class_exists( $field_class_config['class_name'] ) ) {
+						$field_instance = new $field_class_config['class_name']( $field_id, $field_config );
 						$validation     = $field_instance->validate( $item[ $field_id ] );
 
 						if ( is_wp_error( $validation ) ) {

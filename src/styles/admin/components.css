@@ -1,6 +1,7 @@
 @import './components/dialog.css';
 @import './components/dynamic-fields.css';
 @import './components/buttons.css';
+@import './components/field-type-table.css';
 
 
 @keyframes spin {

@@ -56,12 +56,12 @@ class SectionRegistry {
 	private function register_default_section_types() {
 		$default_types = array(
 			'section' => array(
-				'class'    => 'SpiderBoxes\\Sections\\SectionType',
-				'supports' => array( 'title', 'description', 'components', 'collapsible' ),
+				'class_name' => 'SpiderBoxes\\Sections\\SectionType',
+				'supports'   => array( 'title', 'description', 'components', 'collapsible' ),
 			),
 			'form'    => array(
-				'class'    => 'SpiderBoxes\\Sections\\FormType',
-				'supports' => array( 'title', 'description', 'components', 'action', 'method' ),
+				'class_name' => 'SpiderBoxes\\Sections\\FormType',
+				'supports'   => array( 'title', 'description', 'components', 'action', 'method' ),
 			),
 		);
 

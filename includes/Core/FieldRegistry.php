@@ -56,56 +56,56 @@ class FieldRegistry {
 	private function register_default_field_types() {
 		$default_types = array(
 			'button'       => array(
-				'class'    => 'SpiderBoxes\\Fields\\ButtonField',
-				'supports' => array( 'label', 'description', 'class', 'onclick' ),
+				'class_name' => 'SpiderBoxes\\Fields\\ButtonField',
+				'supports'   => array( 'label', 'description', 'class', 'onclick' ),
 			),
 			'checkbox'     => array(
-				'class'    => 'SpiderBoxes\\Fields\\CheckboxField',
-				'supports' => array( 'label', 'description', 'options', 'multiple', 'value' ),
+				'class_name' => 'SpiderBoxes\\Fields\\CheckboxField',
+				'supports'   => array( 'label', 'description', 'options', 'multiple', 'value' ),
 			),
 			'media'        => array(
-				'class'    => 'SpiderBoxes\\Fields\\MediaField',
-				'supports' => array( 'label', 'description', 'multiple', 'mime_types', 'value' ),
+				'class_name' => 'SpiderBoxes\\Fields\\MediaField',
+				'supports'   => array( 'label', 'description', 'multiple', 'mime_types', 'value' ),
 			),
 			'radio'        => array(
-				'class'    => 'SpiderBoxes\\Fields\\RadioField',
-				'supports' => array( 'label', 'description', 'options', 'value' ),
+				'class_name' => 'SpiderBoxes\\Fields\\RadioField',
+				'supports'   => array( 'label', 'description', 'options', 'value' ),
 			),
 			'repeater'     => array(
-				'class'    => 'SpiderBoxes\\Fields\\RepeaterField',
-				'supports' => array( 'label', 'description', 'fields', 'min', 'max', 'value' ),
+				'class_name' => 'SpiderBoxes\\Fields\\RepeaterField',
+				'supports'   => array( 'label', 'description', 'fields', 'min', 'max', 'value' ),
 			),
 			'select'       => array(
-				'class'    => 'SpiderBoxes\\Fields\\SelectField',
-				'supports' => array( 'label', 'description', 'options', 'multiple', 'value' ),
+				'class_name' => 'SpiderBoxes\\Fields\\SelectField',
+				'supports'   => array( 'label', 'description', 'options', 'multiple', 'value' ),
 			),
 			'react-select' => array(
-				'class'    => 'SpiderBoxes\\Fields\\ReactSelectField',
-				'supports' => array( 'label', 'description', 'options', 'multiple', 'async', 'ajax_action', 'value' ),
+				'class_name' => 'SpiderBoxes\\Fields\\ReactSelectField',
+				'supports'   => array( 'label', 'description', 'options', 'multiple', 'async', 'ajax_action', 'value' ),
 			),
 			'range'        => array(
-				'class'    => 'SpiderBoxes\\Fields\\RangeField',
-				'supports' => array( 'label', 'description', 'min', 'max', 'step', 'value' ),
+				'class_name' => 'SpiderBoxes\\Fields\\RangeField',
+				'supports'   => array( 'label', 'description', 'min', 'max', 'step', 'value' ),
 			),
 			'switcher'     => array(
-				'class'    => 'SpiderBoxes\\Fields\\SwitcherField',
-				'supports' => array( 'label', 'description', 'value' ),
+				'class_name' => 'SpiderBoxes\\Fields\\SwitcherField',
+				'supports'   => array( 'label', 'description', 'value' ),
 			),
 			'text'         => array(
-				'class'    => 'SpiderBoxes\\Fields\\TextField',
-				'supports' => array( 'label', 'description', 'placeholder', 'value' ),
+				'class_name' => 'SpiderBoxes\\Fields\\TextField',
+				'supports'   => array( 'label', 'description', 'placeholder', 'value' ),
 			),
 			'datetime'     => array(
-				'class'    => 'SpiderBoxes\\Fields\\DateTimeField',
-				'supports' => array( 'label', 'description', 'format', 'value' ),
+				'class_name' => 'SpiderBoxes\\Fields\\DateTimeField',
+				'supports'   => array( 'label', 'description', 'format', 'value' ),
 			),
 			'textarea'     => array(
-				'class'    => 'SpiderBoxes\\Fields\\TextareaField',
-				'supports' => array( 'label', 'description', 'placeholder', 'rows', 'value' ),
+				'class_name' => 'SpiderBoxes\\Fields\\TextareaField',
+				'supports'   => array( 'label', 'description', 'placeholder', 'rows', 'value' ),
 			),
 			'wysiwyg'      => array(
-				'class'    => 'SpiderBoxes\\Fields\\WysiwygField',
-				'supports' => array( 'label', 'description', 'settings', 'value' ),
+				'class_name' => 'SpiderBoxes\\Fields\\WysiwygField',
+				'supports'   => array( 'label', 'description', 'settings', 'value' ),
 			),
 		);
 
@@ -218,9 +218,9 @@ class FieldRegistry {
 		foreach ( $registry_field_types as $type => $config ) {
 			$combined_field_types[] = array(
 				'id'          => $type,
-				'name'        => ucwords( str_replace( array( '_', '-' ), ' ', $type ) ),
+				'name'        => ucfirst( str_replace( '_', ' ', $type ) ),
 				'type'        => $type,
-				'class_name'  => $config['class'] ?? '',
+				'class_name'  => $config['class_name'] ?? '',
 
 				'description' => $config['description'] ?? '',
 				'supports'    => $config['supports'] ?? array(),
@@ -233,7 +233,14 @@ class FieldRegistry {
 		// Then merge/override with database types (these can override or add custom types)
 		$db_types_by_id = array();
 		foreach ( $db_field_types as $db_type ) {
-			$db_types_by_id[ $db_type['id'] ] = array_merge( $db_type, array( 'meta_field' => false ) );
+			$db_types_by_id[ $db_type['id'] ] = array_merge(
+				$db_type,
+				array(
+					'type'       => $db_type['type'],
+					'name'       => ucfirst( str_replace( '_', ' ', $db_type['type'] ) ),
+					'meta_field' => false,
+				)
+			);
 		}
 
 		// Update registry types with database data if exists

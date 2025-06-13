@@ -129,13 +129,13 @@ class PaneComponent {
 			$field_type         = $field_config['type'] ?? 'text';
 			$field_class_config = $field_registry->get_field_type( $field_type );
 
-			if ( ! $field_class_config || ! class_exists( $field_class_config['class'] ) ) {
+			if ( ! $field_class_config || ! class_exists( $field_class_config['class_name'] ) ) {
 				$content .= '<p>' . sprintf( __( 'Field type "%s" not found', 'spider-boxes' ), $field_type ) . '</p>';
 				continue;
 			}
 
 			$field_value    = isset( $values[ $field_id ] ) ? $values[ $field_id ] : '';
-			$field_instance = new $field_class_config['class']( $field_id, $field_config );
+			$field_instance = new $field_class_config['class_name']( $field_id, $field_config );
 			$content       .= $field_instance->render( $field_value );
 		}
 

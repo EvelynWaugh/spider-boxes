@@ -105,11 +105,11 @@ private function render_column( $column_id, $column_config, $values ) {
 	$component_registry  = spider_boxes()->get_container()->get( 'SpiderBoxes\\Core\\ComponentRegistry' );
 	$column_class_config = $component_registry->get_component_type( 'column' );
 
-	if ( ! $column_class_config || ! class_exists( $column_class_config['class'] ) ) {
+	if ( ! $column_class_config || ! class_exists( $column_class_config['class_name'] ) ) {
 		return '<p>' . __( 'Column component not found', 'spider-boxes' ) . '</p>';
 	}
 
-	$column_instance = new $column_class_config['class']( $column_id, $column_config );
+	$column_instance = new $column_class_config['class_name']( $column_id, $column_config );
 	return $column_instance->render( $values );
 }
 

@@ -113,11 +113,11 @@ private function render_pane( $pane_id, $pane_config, $values ) {
 	$component_registry = spider_boxes()->get_container()->get( 'SpiderBoxes\\Core\\ComponentRegistry' );
 	$pane_class_config  = $component_registry->get_component_type( 'pane' );
 
-	if ( ! $pane_class_config || ! class_exists( $pane_class_config['class'] ) ) {
+	if ( ! $pane_class_config || ! class_exists( $pane_class_config['class_name'] ) ) {
 		return '<p>' . __( 'Pane component not found', 'spider-boxes' ) . '</p>';
 	}
 
-	$pane_instance = new $pane_class_config['class']( $pane_id, $pane_config );
+	$pane_instance = new $pane_class_config['class_name']( $pane_id, $pane_config );
 	return $pane_instance->render( $values );
 }
 	/**

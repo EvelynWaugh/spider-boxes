@@ -5,24 +5,11 @@ import { Button } from "../ui/Button";
 import { SaveIcon, XIcon } from "@/components/icons";
 import { DynamicFieldRenderer, type DynamicField } from "../DynamicFieldRenderer";
 import { useAPI } from "@/hooks/useAPI";
-
-// FieldData - used in FieldForm (frontend form structure)
-export interface FieldData {
-  id?: string;
-  name?: string;
-  type: string;
-  label: string;
-  description?: string;
-  required?: boolean;
-  default_value?: any;
-  settings?: Record<string, any>;
-  options?: any;
-  context?: string; // Optional context for the field (e.g., 'review', 'product')
-}
+import { convertFieldDataToField, type FieldData, type Field } from "@/utils/field";
 
 interface FieldFormProps {
   field?: FieldData;
-  onSave: (field: FieldData) => void;
+  onSave: (field: Field) => void;
   onCancel: () => void;
   error?: string;
   isLoading?: boolean;
@@ -46,6 +33,8 @@ export const FieldForm: React.FC<FieldFormProps> = ({ field, onSave, onCancel, e
     queryFn: () => get("/field-types"),
   });
 
+  console.log("FIeld", field);
+
   const form = useForm({
     defaultValues: {
       id: field?.id || "new",
@@ -53,9 +42,12 @@ export const FieldForm: React.FC<FieldFormProps> = ({ field, onSave, onCancel, e
       type: field?.type || "",
       label: field?.label || "",
       description: field?.description || "",
-      required: field?.required || false,
+      required: field?.required || field?.settings?.required || false,
       default_value: field?.default_value || "",
-      options: field?.options || "",
+      options: field?.options || field?.settings?.options || "",
+      context: field?.context || "default",
+      // Include all settings values as default form values
+      ...(field?.settings || {}),
     },
     onSubmit: async ({ value }) => {
       // Validate required fields
@@ -75,14 +67,10 @@ export const FieldForm: React.FC<FieldFormProps> = ({ field, onSave, onCancel, e
         return;
       }
 
-      // Generate ID for new fields
-      const formData: FieldData = {
-        ...value,
-        // Generate ID if this is a new field, otherwise keep existing ID
-        id: value.id || "new",
-      };
+      // Convert form data to proper field format
+      const convertedFormData = convertFieldDataToField(value, dynamicFields);
 
-      onSave(formData);
+      onSave(convertedFormData);
     },
   });
   // Fetch field type configuration when type is selected
@@ -103,25 +91,46 @@ export const FieldForm: React.FC<FieldFormProps> = ({ field, onSave, onCancel, e
     if (!fieldTypeConfig?.config_fields) return [];
 
     // Convert backend config fields to DynamicField format
-    return fieldTypeConfig.config_fields.map((configField: any) => ({
-      id: configField.id,
-      name: configField.name || configField.id, // Use name if available, otherwise fallback to id
-      type: configField.type,
-      title: configField.title,
-      description: configField.description,
-      required: configField.required || false,
-      placeholder: configField.placeholder,
-      rows: configField.rows,
-      min: configField.min,
-      max: configField.max,
-      step: configField.step,
-      options: configField.options,
-      value: form.getFieldValue(configField.id) || configField.default || "",
-      validation: configField.validation,
-    }));
+    return fieldTypeConfig.config_fields.map((configField: any) => {
+      // Priority order for field values:
+      // 1. Current form value (for live updates)
+      // 2. Field settings value (for editing existing fields)
+      // 3. Config field default value
+      // 4. Empty string fallback
+
+      let fieldValue = form.getFieldValue(configField.id);
+
+      // If no form value exists, check field settings
+      if ((fieldValue === undefined || fieldValue === null || fieldValue === "") && field?.settings) {
+        fieldValue = field.settings[configField.id];
+      }
+
+      // Fallback to config default if still no value
+      if (fieldValue === undefined || fieldValue === null || fieldValue === "") {
+        fieldValue = configField.default || "";
+      }
+
+      return {
+        id: configField.id,
+        name: configField.name || configField.id, // Use name if available, otherwise fallback to id
+        type: configField.type,
+        title: configField.title,
+        description: configField.description,
+        required: configField.required || false,
+        placeholder: configField.placeholder,
+        rows: configField.rows,
+        min: configField.min,
+        max: configField.max,
+        step: configField.step,
+        options: configField.options,
+        value: fieldValue,
+        validation: configField.validation,
+        context: configField.context || "default",
+      };
+    });
   }, [fieldTypeConfig, form]);
 
-  //   console.log(dynamicFields, "Dynamic Fields Configured");
+  console.log(dynamicFields, "Dynamic Fields Configured");
 
   // Create field type selection field
   const typeField: DynamicField = {

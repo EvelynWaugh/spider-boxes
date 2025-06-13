@@ -58,6 +58,29 @@ class RestRoutes {
 			)
 		);
 
+		// Single field type endpoint
+		register_rest_route(
+			$this->namespace,
+			'/field-types/(?P<id>[\\w-]+)',
+			array(
+				array(
+					'methods'             => WP_REST_Server::READABLE,
+					'callback'            => array( $this, 'get_field_type' ),
+					'permission_callback' => array( $this, 'check_permissions' ),
+				),
+				array(
+					'methods'             => WP_REST_Server::EDITABLE,
+					'callback'            => array( $this, 'update_field_type' ),
+					'permission_callback' => array( $this, 'check_permissions' ),
+				),
+				array(
+					'methods'             => WP_REST_Server::DELETABLE,
+					'callback'            => array( $this, 'delete_field_type' ),
+					'permission_callback' => array( $this, 'check_permissions' ),
+				),
+			)
+		);
+
 		// Field type configuration endpoint.
 		register_rest_route(
 			$this->namespace,
@@ -370,10 +393,9 @@ class RestRoutes {
 				'id'          => $field_type,
 				'name'        => ucwords( str_replace( array( '_', '-' ), ' ', $field_type ) ),
 				'type'        => $field_type,
-				'class_name'  => $config['class'] ?? '',
+				'class_name'  => $config['class_name'] ?? '',
 				'description' => $config['description'] ?? '',
 				'supports'    => $config['supports'] ?? array(),
-				'meta_field'  => $config['meta_field'] ?? false,
 			);
 		}
 
@@ -583,6 +605,30 @@ class RestRoutes {
 			'description' => 'Store this field as a post meta field',
 		);
 
+		$fields[] = array(
+			'id'          => 'context',
+			'type'        => 'select',
+			'title'       => 'Context',
+			'description' => 'Where this field is used',
+			'options'     => array(
+				'default' => array(
+					'label' => __( 'Default', 'spider-boxes' ),
+				),
+				'review'  => array(
+					'label' => __( 'Review', 'spider-boxes' ),
+				),
+
+				'product' => array(
+					'label' => __( 'Product', 'spider-boxes' ),
+				),
+				'post'    => array(
+					'label' => __( 'Post', 'spider-boxes' ),
+				),
+
+			),
+			'default'     => 'default',
+		);
+
 		/**
 		 * Filter the generated configuration fields
 		 *
@@ -608,7 +654,7 @@ class RestRoutes {
 		}
 
 		// Validate required fields.
-		$required_fields = array( 'name' );
+		$required_fields = array( 'type' );
 		foreach ( $required_fields as $field ) {
 			if ( empty( $params[ $field ] ) ) {
 				// translators: %s is the field name.
@@ -622,8 +668,8 @@ class RestRoutes {
 
 		// Check if field type already exists.
 		$existing_types       = DatabaseManager::get_field_types();
-		$existing_field_types = wp_list_pluck( $existing_types, 'name' );
-		if ( in_array( $params['name'], $existing_field_types, true ) ) {
+		$existing_field_types = wp_list_pluck( $existing_types, 'type' );
+		if ( in_array( $params['type'], $existing_field_types, true ) ) {
 			return new WP_Error(
 				'field_type_exists',
 				__( 'Field type already exists', 'spider-boxes' ),
@@ -633,7 +679,7 @@ class RestRoutes {
 		// Sanitize input data.
 		$field_type_data = array(
 
-			'name'        => sanitize_text_field( $params['name'] ),
+			'type'        => sanitize_text_field( $params['type'] ),
 			'class_name'  => sanitize_text_field( $params['class_name'] ?? '' ),
 			'icon'        => sanitize_text_field( $params['icon'] ?? 'component' ),
 			'description' => sanitize_textarea_field( $params['description'] ?? '' ),
@@ -657,17 +703,175 @@ class RestRoutes {
 		$field_registry->register_field_type(
 			$field_type_data['type'],
 			array(
-				'class'    => $field_type_data['class_name'] ?? '',
-				'supports' => $field_type_data['supports'],
+				'class_name' => $field_type_data['class_name'] ?? '',
+				'supports'   => $field_type_data['supports'],
 
+			)
+		);
+		return rest_ensure_response(
+			array(
+				'success'    => true,
+				'id'         => $field_type_data['id'],
+				'field_type' => $field_type_data,
+			)
+		);
+	}
+
+	/**
+	 * Get single field type
+	 *
+	 * @param WP_REST_Request $request Request object.
+	 * @return WP_REST_Response|WP_Error
+	 */
+	public function get_field_type( $request ) {
+		$id = $request->get_param( 'id' );
+
+		if ( empty( $id ) ) {
+			return new WP_Error(
+				'missing_field_type_id',
+				__( 'Field type ID is required', 'spider-boxes' ),
+				array( 'status' => 400 )
+			);
+		}
+
+		// Get field types from database
+		$field_types = DatabaseManager::get_field_types();
+		$field_type  = null;
+
+		// Find the field type by ID or type
+		foreach ( $field_types as $type ) {
+			if ( $type['id'] === $id || $type['type'] === $id || $type['name'] === $id ) {
+				$field_type = $type;
+				break;
+			}
+		}
+
+		if ( ! $field_type ) {
+			return new WP_Error(
+				'field_type_not_found',
+				__( 'Field type not found', 'spider-boxes' ),
+				array( 'status' => 404 )
+			);
+		}
+
+		return rest_ensure_response( $field_type );
+	}
+
+	/**
+	 * Update field type
+	 *
+	 * @param WP_REST_Request $request Request object.
+	 * @return WP_REST_Response|WP_Error
+	 */
+	public function update_field_type( $request ) {
+		$id     = $request->get_param( 'id' );
+		$params = $request->get_json_params();
+
+		if ( empty( $params ) ) {
+			$params = $request->get_params();
+		}
+
+		if ( empty( $id ) ) {
+			return new WP_Error(
+				'missing_field_type_id',
+				__( 'Field type ID is required', 'spider-boxes' ),
+				array( 'status' => 400 )
+			);
+		}
+
+		// Check if field type exists
+		$existing_types      = DatabaseManager::get_field_types();
+		$existing_field_type = null;
+
+		foreach ( $existing_types as $type ) {
+			if ( $type['id'] === $id || $type['name'] === $id ) {
+				$existing_field_type = $type;
+				break;
+			}
+		}
+
+		if ( ! $existing_field_type ) {
+			return new WP_Error(
+				'field_type_not_found',
+				__( 'Field type not found', 'spider-boxes' ),
+				array( 'status' => 404 )
+			);
+		}
+
+		// Merge with existing data and validate required fields
+		$field_type_data = array_merge(
+			$existing_field_type,
+			array(
+				'name'        => sanitize_text_field( $params['name'] ?? $existing_field_type['name'] ),
+				'class_name'  => sanitize_text_field( $params['class_name'] ?? $existing_field_type['class_name'] ),
+				'icon'        => sanitize_text_field( $params['icon'] ?? $existing_field_type['icon'] ),
+				'description' => sanitize_textarea_field( $params['description'] ?? $existing_field_type['description'] ),
+				'supports'    => is_array( $params['supports'] ?? $existing_field_type['supports'] ) ? ( $params['supports'] ?? $existing_field_type['supports'] ) : array(),
+				'is_active'   => isset( $params['is_active'] ) ? (bool) $params['is_active'] : ( $existing_field_type['is_active'] ?? true ),
+			)
+		);
+
+		// Update field type in database
+		$success = DatabaseManager::register_field_type( $field_type_data );
+
+		if ( ! $success ) {
+			return new WP_Error(
+				'update_failed',
+				__( 'Failed to update field type', 'spider-boxes' ),
+				array( 'status' => 500 )
+			);
+		}
+
+		// Also update field registry for runtime usage
+		$field_registry = spider_boxes()->get_container()->get( 'fieldRegistry' );
+		$field_registry->register_field_type(
+			$field_type_data['type'],
+			array(
+				'class_name' => $field_type_data['class_name'] ?? '',
+				'supports'   => $field_type_data['supports'],
 			)
 		);
 
 		return rest_ensure_response(
 			array(
 				'success'    => true,
-				'id'         => $field_type_data['id'],
 				'field_type' => $field_type_data,
+			)
+		);
+	}
+
+	/**
+	 * Delete field type
+	 *
+	 * @param WP_REST_Request $request Request object.
+	 * @return WP_REST_Response|WP_Error
+	 */
+	public function delete_field_type( $request ) {
+		$id = $request->get_param( 'id' );
+
+		if ( empty( $id ) ) {
+			return new WP_Error(
+				'missing_field_type_id',
+				__( 'Field type ID is required', 'spider-boxes' ),
+				array( 'status' => 400 )
+			);
+		}
+
+		$success = DatabaseManager::delete_field_type( $id );
+
+		if ( ! $success ) {
+			return new WP_Error(
+				'delete_failed',
+				__( 'Failed to delete field type', 'spider-boxes' ),
+				array( 'status' => 500 )
+			);
+		}
+
+		return rest_ensure_response(
+			array(
+				'success' => true,
+				'deleted' => true,
+				'message' => 'Field type deleted successfully',
 			)
 		);
 	}
@@ -679,11 +883,11 @@ class RestRoutes {
 	 * @return WP_REST_Response
 	 */
 	public function get_fields( $request ) {
-		$parent  = $request->get_param( 'parent' );
+
 		$context = $request->get_param( 'context' );
 
 		// Get fields from database instead of registry.
-		$fields = DatabaseManager::get_all_fields( $parent, $context );
+		$fields = DatabaseManager::get_all_fields( $context );
 
 		return rest_ensure_response( $fields );
 	}

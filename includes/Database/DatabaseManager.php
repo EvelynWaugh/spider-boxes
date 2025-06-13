@@ -18,7 +18,7 @@ class DatabaseManager {
 	 *
 	 * @var string
 	 */
-	protected static $db_table_version = '1.1.4';
+	protected static $db_table_version = '1.1.5';
 
 	/**
 	 * Create custom database tables
@@ -77,7 +77,7 @@ class DatabaseManager {
 		$field_types_table = $wpdb->prefix . 'spider_boxes_field_types';
 		$field_types_sql   = "CREATE TABLE $field_types_table (
 			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-			name varchar(255) NOT NULL,
+			type varchar(255) NOT NULL,
 			class_name varchar(255) DEFAULT NULL,
 			icon varchar(100) DEFAULT 'component',
 			description text,
@@ -93,7 +93,7 @@ class DatabaseManager {
 		$component_types_table = $wpdb->prefix . 'spider_boxes_component_types';
 		$component_types_sql   = "CREATE TABLE $component_types_table (
 			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-			name varchar(255) NOT NULL,
+			type varchar(255) NOT NULL,
 			class_name varchar(255) DEFAULT NULL,
 			icon varchar(100) DEFAULT 'component',
 			description text,
@@ -109,7 +109,7 @@ class DatabaseManager {
 		$section_types_table = $wpdb->prefix . 'spider_boxes_section_types';
 		$section_types_sql   = "CREATE TABLE $section_types_table (
 			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-			name varchar(255) NOT NULL,
+			type varchar(255) NOT NULL,
 			class_name varchar(255) DEFAULT NULL,
 			icon varchar(100) DEFAULT 'section',
 			description text,
@@ -195,16 +195,29 @@ class DatabaseManager {
 		$results = DB::table( 'spider_boxes_field_types' )
 		->select( '*' )
 		->where( 'is_active', 1 )
-		->orderBy( 'name' )
-		->getAll();
+		->orderBy( 'type' )
+		->getAll( ARRAY_A );
 
 		if ( ! $results ) {
 			return array();
 		}
 
-		// Decode supports JSON for each field type.
+		// Unserialize for each field type.
 		foreach ( $results as &$field_type ) {
-			$field_type['supports'] = json_decode( $field_type['supports'], true );
+
+			if ( $field_type['supports'] ) {
+				$serialized_array = maybe_unserialize( $field_type['supports'] );
+				if ( is_array( $serialized_array ) ) {
+					$field_type['supports'] = $serialized_array;
+				} else {
+					// If unserialization fails, reset to empty array
+					$field_type['supports'] = array( $serialized_array );
+				}
+			} else {
+				$field_type['supports'] = array();
+			}
+
+			// $field_type['supports'] = array();
 		}
 
 		return $results;
@@ -218,7 +231,7 @@ class DatabaseManager {
 		return DB::table( 'spider_boxes_field_types' )
 			->where( 'type', $type )
 			->where( 'is_active', 1 )
-			->get();
+			->get( ARRAY_A );
 	}
 
 	/**
@@ -230,7 +243,7 @@ class DatabaseManager {
 	public static function register_field_type( $field_type ) {
 
 		// Validate required fields.
-		$required_fields = array( 'name' );
+		$required_fields = array( 'type' );
 		foreach ( $required_fields as $field ) {
 			if ( empty( $field_type[ $field ] ) ) {
 				return false;
@@ -257,16 +270,16 @@ class DatabaseManager {
 		try {
 				// Check if field type already exists
 				$existing = DB::table( 'spider_boxes_field_types' )
-					->where( 'name', $field_type['name'] )
+					->where( 'type', $field_type['type'] )
 					->get();
 
 			if ( $existing ) {
 				// Update existing field type
 				$update_data = $field_type;
-				unset( $update_data['name'] ); // Don't update the name field
+				unset( $update_data['type'] ); // Don't update the type field
 
 				$result = DB::table( 'spider_boxes_field_types' )
-					->where( 'name', $field_type['name'] )
+					->where( 'type', $field_type['type'] )
 					->update( $update_data );
 			} else {
 				// Insert new field type
@@ -278,6 +291,37 @@ class DatabaseManager {
 
 		} catch ( \Exception $e ) {
 			error_log( 'Spider Boxes: Failed to register field type: ' . $e->getMessage() );
+			return false;
+		}
+	}
+
+
+	/**
+	 * Delete a field type
+	 *
+	 * @param string $id Field type identifier.
+	 * @return bool Success status.
+	 */
+	public static function delete_field_type( $id ) {
+		try {
+			// Check if field type exists
+			$existing = DB::table( 'spider_boxes_field_types' )
+				->where( 'id', $id )
+				->get();
+
+			if ( ! $existing ) {
+				return false;
+			}
+
+			// Delete the field type
+			$result = DB::table( 'spider_boxes_field_types' )
+				->where( 'id', $id )
+				->delete();
+
+			return $result !== false;
+
+		} catch ( \Exception $e ) {
+			error_log( 'Spider Boxes: Failed to delete field type: ' . $e->getMessage() );
 			return false;
 		}
 	}
@@ -341,7 +385,6 @@ class DatabaseManager {
 			return null;
 		}
 
-		// Decode JSON settings.
 		$result['settings'] = maybe_unserialize( $result['settings'] );
 		$result['value']    = maybe_unserialize( $result['value'] );
 
@@ -372,7 +415,6 @@ class DatabaseManager {
 			return null;
 		}
 
-		// Decode JSON settings.
 		$result['settings'] = maybe_unserialize( $result['settings'] );
 		$result['value']    = maybe_unserialize( $result['value'] );
 
@@ -466,15 +508,10 @@ class DatabaseManager {
 	 * @param string $context Optional context to filter by.
 	 * @return array Array of field configurations.
 	 */
-	public static function get_all_fields( $parent = '', $context = '' ) {
+	public static function get_all_fields( $context = '' ) {
 		try {
 			$query = DB::table( 'spider_boxes_fields' )
 			->select( '*' );
-
-			// Add conditional where clauses
-			if ( ! empty( $parent ) ) {
-				$query->where( 'parent', $parent );
-			}
 
 			if ( ! empty( $context ) ) {
 				$query->where( 'context', $context );
@@ -482,13 +519,13 @@ class DatabaseManager {
 
 			$results = $query
 			->orderBy( 'created_at', 'ASC' )
-			->getAll();
+			->getAll( ARRAY_A );
 
 			if ( ! $results ) {
 				return array();
 			}
 
-			// Convert objects to arrays and decode JSON settings and unserialize values
+			// Convert objects to arrays and unserialize values
 			$fields = array();
 			foreach ( $results as $field ) {
 				$field_array             = (array) $field;
@@ -497,7 +534,7 @@ class DatabaseManager {
 				$fields[]                = $field_array;
 			}
 
-			return apply_filters( 'spider_boxes_get_db_fields', $fields, $parent, $context );
+			return apply_filters( 'spider_boxes_get_db_fields', $fields, $context );
 
 		} catch ( \Exception $e ) {
 			error_log( 'Spider Boxes: Failed to get all fields: ' . $e->getMessage() );
@@ -588,7 +625,7 @@ class DatabaseManager {
 		// Check if field type is registered.
 		if ( ! empty( $field_config['type'] ) ) {
 			$field_types      = self::get_field_types();
-			$registered_types = wp_list_pluck( $field_types, 'name' );
+			$registered_types = wp_list_pluck( $field_types, 'type' );
 			if ( ! in_array( $field_config['type'], $registered_types, true ) ) {
 				$errors[] = sprintf( 'Invalid field type: %s', $field_config['type'] );
 			}
@@ -659,7 +696,7 @@ class DatabaseManager {
 			$sanitized['value'] = $field_config['value'];
 		}
 
-		// Keep other settings as-is for now (they'll be JSON encoded).
+		// Keep other settings as-is for now (they'll be serialized).
 		foreach ( $field_config as $key => $value ) {
 			if ( ! isset( $sanitized[ $key ] ) ) {
 				$sanitized[ $key ] = $value;
@@ -739,7 +776,7 @@ class DatabaseManager {
 			return null;
 		}
 
-		// Decode JSON settings.
+		// Unserialize settings.
 		$result['settings'] = maybe_unserialize( $result['settings'] );
 
 		return $result;
@@ -815,7 +852,7 @@ class DatabaseManager {
 			return array();
 		}
 
-		// Decode JSON settings for each component.
+		// Unserialize settings for each component.
 		foreach ( $results as &$component ) {
 			$component['settings'] = maybe_unserialize( $component['settings'] );
 
@@ -926,7 +963,7 @@ class DatabaseManager {
 			return null;
 		}
 
-		// Decode JSON settings and components.
+		// Unserialize settings and components.
 		$result['settings'] = maybe_unserialize( $result['settings'] );
 
 		return $result;
@@ -974,7 +1011,7 @@ class DatabaseManager {
 			return array();
 		}
 
-		// Decode JSON settings and components for each section.
+		// Unserialize settings and components for each section.
 		foreach ( $results as &$section ) {
 			$section['settings'] = maybe_unserialize( $section['settings'] );
 
@@ -1035,9 +1072,9 @@ class DatabaseManager {
 			return array();
 		}
 
-		// Decode supports JSON for each component type.
+		// Unserialize for each component type.
 		foreach ( $results as &$component_type ) {
-			$component_type['supports'] = json_decode( $component_type['supports'], true );
+			$component_type['supports'] = maybe_unserialize( $component_type['supports'] );
 
 		}
 
@@ -1120,9 +1157,9 @@ class DatabaseManager {
 			return array();
 		}
 
-		// Decode supports JSON for each section type.
+		// Unserialize for each section type.
 		foreach ( $results as &$section_type ) {
-			$section_type['supports'] = json_decode( $section_type['supports'], true );
+			$section_type['supports'] = maybe_unserialize( $section_type['supports'] );
 		}
 
 		return $results;

@@ -789,10 +789,64 @@ class ReviewsManager {
 	 */
 	public function get_review_fields() {
 		$this->register_review_fields();
-		return $this->field_registry->get_fields()->filter(
+		$registry_fields = $this->field_registry->get_fields()->filter(
 			function ( $field ) {
 				return isset( $field['context'] ) && $field['context'] === 'review';
 			}
 		);
+
+			// Get fields from database with 'review' context
+		$db_fields = \SpiderBoxes\Database\DatabaseManager::get_all_fields( 'review' );
+
+			// Convert registry fields to array for merging
+		$registry_fields_array = $registry_fields->toArray();
+
+		// Merge database fields with registry fields
+		// Database fields will override registry fields with same ID
+		$merged_fields = array();
+
+		// Add registry fields first
+		foreach ( $registry_fields_array as $field_id => $field_config ) {
+			$merged_fields[ $field_id ] = $field_config;
+		}
+
+		// Add/override with database fields
+		foreach ( $db_fields as $db_field ) {
+			$field_id = $db_field['id'];
+			if ( $field_id ) {
+				$string_field_id       = $db_field['name'] . '_' . (string) $field_id;
+				$unserialized_settings = maybe_unserialize( $db_field['settings'] ?? '' );
+				// Convert database field format to match registry format
+				$formatted_field = array(
+					'id'          => $string_field_id,
+					'type'        => $db_field['type'],
+					'title'       => $db_field['title'],
+					'description' => $db_field['description'] ?? '',
+					'context'     => $db_field['context'],
+					'value'       => $db_field['value'],
+
+				);
+
+				// Merge settings if they exist
+				if ( is_array( $unserialized_settings ) ) {
+					$formatted_field = array_merge( $formatted_field, $unserialized_settings );
+				}
+
+				$merged_fields[ $string_field_id ] = $formatted_field;
+			}
+		}
+
+		/**
+		 * Allow developers to modify review fields after merging
+		 *
+		 * @param array $merged_fields Array of merged field configurations
+		 * @param array $registry_fields_array Registry fields
+		 * @param array $db_fields Database fields
+		 * @param ReviewsManager $this The ReviewsManager instance
+		 */
+		$merged_fields = apply_filters( 'spider_boxes_merged_review_fields', $merged_fields, $registry_fields_array, $db_fields, $this );
+
+		// Convert back to Collection for consistency
+		return collect( $merged_fields );
 	}
 }

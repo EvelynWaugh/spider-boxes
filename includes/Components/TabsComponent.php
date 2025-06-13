@@ -108,11 +108,11 @@ class TabsComponent {
 		$component_registry = spider_boxes()->get_container()->get( 'SpiderBoxes\\Core\\ComponentRegistry' );
 		$tab_class_config   = $component_registry->get_component_type( 'tab' );
 
-		if ( ! $tab_class_config || ! class_exists( $tab_class_config['class'] ) ) {
+		if ( ! $tab_class_config || ! class_exists( $tab_class_config['class_name'] ) ) {
 			return '<p>' . __( 'Tab component not found', 'spider-boxes' ) . '</p>';
 		}
 
-		$tab_instance = new $tab_class_config['class']( $tab_id, $tab_config );
+		$tab_instance = new $tab_class_config['class_name']( $tab_id, $tab_config );
 		return $tab_instance->render_nav();
 	}
 
@@ -128,11 +128,11 @@ class TabsComponent {
 		$component_registry = spider_boxes()->get_container()->get( 'SpiderBoxes\\Core\\ComponentRegistry' );
 		$tab_class_config   = $component_registry->get_component_type( 'tab' );
 
-		if ( ! $tab_class_config || ! class_exists( $tab_class_config['class'] ) ) {
+		if ( ! $tab_class_config || ! class_exists( $tab_class_config['class_name'] ) ) {
 			return '<p>' . __( 'Tab component not found', 'spider-boxes' ) . '</p>';
 		}
 
-		$tab_instance = new $tab_class_config['class']( $tab_id, $tab_config );
+		$tab_instance = new $tab_class_config['class_name']( $tab_id, $tab_config );
 		return $tab_instance->render( $values );
 	}
 
