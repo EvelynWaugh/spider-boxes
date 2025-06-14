@@ -1,129 +1,78 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
+import { PlusIcon, PencilIcon, TrashIcon } from "@/components/icons";
 import { Button } from "./ui/Button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/Dialog";
-import { useAPI } from "../hooks/useAPI";
-import { FieldRenderer } from "./FieldRenderer";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/Dialog";
+import { ComponentForm, convertComponentToComponentData } from "./forms/ComponentForm";
+import { useAPI } from "@/hooks/useAPI";
+import { doAction, applyFilters } from "@/hooks/createHooks";
+import { type Component } from "@/utils/component";
 
-interface Component {
-  id: string;
-  type: string;
-  title: string;
-  description?: string;
-  parent_id?: string;
-  section_id?: string;
-  context?: string;
-  settings?: Record<string, any>;
-  children?: Record<string, any>;
-  is_active?: boolean;
-
-  created_at?: string;
-  updated_at?: string;
-}
-
-interface ComponentType {
-  id: string;
-  name: string;
-  class_name?: string;
-  icon: string;
-  description: string;
-  supports: string[];
-  children?: string[];
-  parent?: string;
-}
-
-export const ComponentsManager: React.FC = () => {
+export function ComponentsManager() {
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingComponent, setEditingComponent] = useState<Component | null>(null);
   const queryClient = useQueryClient();
-  const { get, post, patch, del } = useAPI();
+  const api = useAPI();
 
-  const [selectedComponent, setSelectedComponent] = useState<Component | null>(null);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [isCreateMode, setIsCreateMode] = useState(false);
-  const [componentForm, setComponentForm] = useState<Partial<Component>>({});
-
-  // Fetch components
-  const { data: components = [], isLoading: componentsLoading } = useQuery({
+  const { data: components = [], isLoading } = useQuery({
     queryKey: ["components"],
-    queryFn: () => get("/components"),
+    queryFn: () => api.get("/components"),
   });
-  // Fetch component types
-  const { data: componentTypesResponse = {}, isLoading: typesLoading } = useQuery({
-    queryKey: ["component-types"],
-    queryFn: () => get("/component-types"),
-  });
-  // Extract component types from the response and convert to array format
-  const componentTypes = Object.entries(componentTypesResponse.component_types || {}).map(([id, type]: [string, any]) => ({
-    id,
-    name: type.name || type.class_name?.split("\\").pop() || id,
-    class_name: type.class_name || "",
-    category: type.category || "general",
-    icon: type.icon || "🔧",
-    description: type.description || "",
-    supports: type.supports || [],
-    children: type.children || [],
-    parent: type.parent || "",
-  }));
 
-  console.log(componentTypes);
-
-  // Create component mutation
   const createComponentMutation = useMutation({
-    mutationFn: (componentData: Partial<Component>) => post("/components", componentData),
+    mutationFn: (componentData: Partial<Component>) => api.post("/components", componentData),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["components"] });
-      setIsDialogOpen(false);
-      setComponentForm({});
+      setIsFormOpen(false);
+      setEditingComponent(null);
+      doAction("spiderBoxes.componentCreated");
+    },
+    onError: (error) => {
+      console.error("Error creating component:", error);
     },
   });
 
-  // Update component mutation
   const updateComponentMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<Component> }) => patch(`/components/${id}`, data),
+    mutationFn: ({ id, ...componentData }: Partial<Component> & { id: string }) => api.put(`/components/${id}`, componentData),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["components"] });
-      setIsDialogOpen(false);
-      setSelectedComponent(null);
+      setIsFormOpen(false);
+      setEditingComponent(null);
+      doAction("spiderBoxes.componentUpdated");
+    },
+    onError: (error) => {
+      console.error("Error updating component:", error);
     },
   });
 
-  // Delete component mutation
   const deleteComponentMutation = useMutation({
-    mutationFn: (id: string) => del(`/components/${id}`),
+    mutationFn: (id: string) => api.del(`/components/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["components"] });
+      doAction("spiderBoxes.componentDeleted");
     },
   });
+
   const handleCreateComponent = () => {
-    setIsCreateMode(true);
-    setComponentForm({
-      type: "accordion",
-      title: "",
-      description: "",
-      context: "default",
-      settings: {},
-      children: {},
-      is_active: true,
-    });
-    setIsDialogOpen(true);
+    setEditingComponent(null);
+    setIsFormOpen(true);
+    createComponentMutation.reset();
+    updateComponentMutation.reset();
   };
 
   const handleEditComponent = (component: Component) => {
-    setIsCreateMode(false);
-    setSelectedComponent(component);
-    setComponentForm(component);
-    setIsDialogOpen(true);
+    setEditingComponent(component);
+    setIsFormOpen(true);
+    createComponentMutation.reset();
+    updateComponentMutation.reset();
   };
 
-  const handleSaveComponent = () => {
-    if (isCreateMode) {
-      createComponentMutation.mutate(componentForm);
-    } else if (selectedComponent) {
-      updateComponentMutation.mutate({
-        id: selectedComponent.id,
-        data: componentForm,
-      });
-    }
+  const handleCloseForm = () => {
+    setIsFormOpen(false);
+    setEditingComponent(null);
+    createComponentMutation.reset();
+    updateComponentMutation.reset();
   };
 
   const handleDeleteComponent = (id: string) => {
@@ -131,263 +80,159 @@ export const ComponentsManager: React.FC = () => {
       deleteComponentMutation.mutate(id);
     }
   };
-  const updateFormField = (field: string, value: any) => {
-    setComponentForm((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
+
+  const handleFormSubmit = (componentData: Component) => {
+    console.log("Form submitted with data:", componentData);
+
+    // Validate required fields
+    const requiredFields = ["type", "title"];
+    const missingFields = requiredFields.filter((field) => !componentData[field as keyof Component]);
+
+    if (missingFields.length > 0) {
+      console.error(`Missing required fields: ${missingFields.join(", ")}`);
+      return;
+    }
+
+    // Apply filters for extensibility
+    const processedComponent = applyFilters("spiderBoxes.componentToSave", componentData, editingComponent) as Component;
+
+    if (editingComponent && editingComponent.id !== "new") {
+      console.log("Updating existing component:", editingComponent.id);
+      updateComponentMutation.mutate({ ...processedComponent, id: editingComponent.id });
+    } else {
+      console.log("Creating new component");
+      createComponentMutation.mutate(processedComponent);
+    }
   };
 
-  const updateFormSettings = (key: string, value: any) => {
-    setComponentForm((prev) => ({
-      ...prev,
-      settings: {
-        ...prev.settings,
-        [key]: value,
-      },
-    }));
+  // Helper function to get error message
+  const getErrorMessage = (error: any): string => {
+    if (!error) return "";
+    if (typeof error === "string") return error;
+    if (error.message) return error.message;
+    if (error.response?.data?.message) return error.response.data.message;
+    if (error.response?.statusText) return error.response.statusText;
+    return "An unexpected error occurred";
   };
 
+  // Helper function to get component icon
   const getComponentIcon = (type: string) => {
     const icons: Record<string, string> = {
       accordion: "📋",
       tab: "📑",
+      tabs: "📑",
       row: "▦",
       column: "▨",
+      pane: "📄",
     };
     return icons[type] || "🔧";
   };
 
-  if (componentsLoading || typesLoading) {
+  if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      <div className="flex items-center justify-center h-32">
+        <div className="spider-boxes-loading"></div>
       </div>
     );
   }
 
   return (
-    <div className="components-manager">
-      <div className="components-header">
-        <h3 className="text-lg font-semibold mb-4">Components</h3>
-        <Button onClick={handleCreateComponent}>Create Component</Button>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-medium text-gray-900">Components</h2>
+          <p className="text-sm text-gray-600">Manage reusable components that can be used to build sections.</p>
+        </div>
+        <Button onClick={handleCreateComponent} className="spider-boxes-button">
+          <PlusIcon className="w-4 h-4 mr-2" />
+          Add Component
+        </Button>
       </div>
 
-      <div className="components-grid">
-        <AnimatePresence>
-          {components.map((component: Component) => (
-            <motion.div
-              key={component.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.2 }}
-              className="component-card"
-            >
-              {" "}
-              <div className="component-card-header">
-                <div className="component-icon">{getComponentIcon(component.type)}</div>
-                <div className="component-info">
-                  <h4 className="component-title">{component.title}</h4>
-                  <p className="component-type">{component.type}</p>
-                  {component.description && <p className="component-description">{component.description}</p>}
+      {components.length === 0 ? (
+        <div className="text-center py-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+          <p className="text-gray-500 mb-4">No components created yet.</p>
+          <Button onClick={handleCreateComponent} className="spider-boxes-button">
+            <PlusIcon className="w-4 h-4 mr-2" />
+            Create your first component
+          </Button>
+        </div>
+      ) : (
+        <div className="spider-boxes-table">
+          <div className="spider-boxes-table-header">
+            <div className="spider-boxes-table-header-cell">Component ID</div>
+            <div className="spider-boxes-table-header-cell">Title</div>
+            <div className="spider-boxes-table-header-cell">Type</div>
+            <div className="spider-boxes-table-header-cell">Context</div>
+            <div className="spider-boxes-table-header-cell">Children</div>
+            <div className="spider-boxes-table-header-cell">Status</div>
+            <div className="spider-boxes-table-header-cell">Actions</div>
+          </div>
+          <div className="divide-y divide-gray-200">
+            {components.map((component: Component) => (
+              <motion.div
+                key={component.id}
+                layout
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="spider-boxes-table-row"
+              >
+                <div className="spider-boxes-table-cell font-mono text-xs bg-gray-50">
+                  <div className="flex items-center space-x-2">
+                    <span>{getComponentIcon(component.type)}</span>
+                    <span>{component.id}</span>
+                  </div>
                 </div>
-              </div>{" "}
-              <div className="component-meta">
-                <span className="component-context">Context: {component.context || "default"}</span>
-                <span className="component-children-count">{Object.keys(component.children || {}).length} children</span>
-              </div>
-              <div className="component-actions">
-                <Button variant="outline" size="sm" onClick={() => handleEditComponent(component)}>
-                  Edit
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => handleDeleteComponent(component.id)}>
-                  Delete
-                </Button>
-              </div>
-            </motion.div>
-          ))}
-        </AnimatePresence>
-      </div>
-
-      {components.length === 0 && (
-        <div className="empty-state">
-          <div className="empty-state-icon">🔧</div>
-          <h3 className="empty-state-title">No components yet</h3>
-          <p className="empty-state-description">Create your first component to get started.</p>
-          <Button onClick={handleCreateComponent}>Create Component</Button>
+                <div className="spider-boxes-table-cell font-medium">{component.title}</div>
+                <div className="spider-boxes-table-cell">
+                  <span className="spider-boxes-badge spider-boxes-badge-primary">{component.type}</span>
+                </div>
+                <div className="spider-boxes-table-cell text-gray-500">{component.context || "default"}</div>
+                <div className="spider-boxes-table-cell text-gray-500">{Object.keys(component.children || {}).length} children</div>
+                <div className="spider-boxes-table-cell">
+                  <span className={`spider-boxes-badge ${component.is_active ? "spider-boxes-badge-success" : "spider-boxes-badge-gray"}`}>
+                    {component.is_active ? "Active" : "Inactive"}
+                  </span>
+                </div>
+                <div className="spider-boxes-table-cell">
+                  <div className="flex space-x-2">
+                    <button
+                      onClick={() => handleEditComponent(component)}
+                      className="text-primary-600 hover:text-primary-900"
+                      title="Edit component"
+                    >
+                      <PencilIcon className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteComponent(component.id)}
+                      className="text-red-600 hover:text-red-900"
+                      title="Delete component"
+                    >
+                      <TrashIcon className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
         </div>
       )}
 
-      {/* Component Form Dialog */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+      <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
         <DialogContent size="lg">
           <DialogHeader>
-            <DialogTitle>{isCreateMode ? "Create Component" : "Edit Component"}</DialogTitle>
+            <DialogTitle>{editingComponent ? "Edit Component" : "Create New Component"}</DialogTitle>
           </DialogHeader>
-
-          <div className="component-form">
-            <div className="form-grid">
-              <FieldRenderer
-                config={{
-                  id: "title",
-                  type: "text",
-                  label: "Component Title",
-                  required: true,
-                  placeholder: "Enter component title",
-                }}
-                value={componentForm.title || ""}
-                onChange={(value) => updateFormField("title", value)}
-              />
-
-              <FieldRenderer
-                config={{
-                  id: "type",
-                  type: "select",
-                  label: "Component Type",
-                  required: true,
-                  options: componentTypes.map((type: ComponentType) => ({
-                    label: type.name,
-                    value: type.id,
-                  })),
-                }}
-                value={componentForm.type || ""}
-                onChange={(value) => updateFormField("type", value)}
-              />
-
-              <FieldRenderer
-                config={{
-                  id: "description",
-                  type: "textarea",
-                  label: "Description",
-                  placeholder: "Enter component description",
-                  rows: 3,
-                }}
-                value={componentForm.description || ""}
-                onChange={(value) => updateFormField("description", value)}
-              />
-            </div>
-            {/* Component Type Specific Configuration */}
-            {componentForm.type && (
-              <div className="component-config">
-                <h4 className="config-title">Component Configuration</h4>{" "}
-                {componentForm.type === "accordion" && (
-                  <div className="config-grid">
-                    <FieldRenderer
-                      config={{
-                        id: "collapsed",
-                        type: "switcher",
-                        label: "Start Collapsed",
-                      }}
-                      value={componentForm.settings?.collapsed || false}
-                      onChange={(value) => updateFormSettings("collapsed", value)}
-                    />
-                    <FieldRenderer
-                      config={{
-                        id: "multiple",
-                        type: "switcher",
-                        label: "Allow Multiple Open",
-                      }}
-                      value={componentForm.settings?.multiple || false}
-                      onChange={(value) => updateFormSettings("multiple", value)}
-                    />
-                  </div>
-                )}
-                {componentForm.type === "tab" && (
-                  <div className="config-grid">
-                    <FieldRenderer
-                      config={{
-                        id: "orientation",
-                        type: "select",
-                        label: "Tab Orientation",
-                        options: [
-                          { label: "Horizontal", value: "horizontal" },
-                          { label: "Vertical", value: "vertical" },
-                        ],
-                      }}
-                      value={componentForm.settings?.orientation || "horizontal"}
-                      onChange={(value) => updateFormSettings("orientation", value)}
-                    />
-                    <FieldRenderer
-                      config={{
-                        id: "icon",
-                        type: "text",
-                        label: "Tab Icon",
-                        placeholder: "Icon class or emoji",
-                      }}
-                      value={componentForm.settings?.icon || ""}
-                      onChange={(value) => updateFormSettings("icon", value)}
-                    />
-                  </div>
-                )}
-                {componentForm.type === "row" && (
-                  <div className="config-grid">
-                    <FieldRenderer
-                      config={{
-                        id: "gap",
-                        type: "select",
-                        label: "Column Gap",
-                        options: [
-                          { label: "Small", value: "sm" },
-                          { label: "Medium", value: "md" },
-                          { label: "Large", value: "lg" },
-                        ],
-                      }}
-                      value={componentForm.settings?.gap || "md"}
-                      onChange={(value) => updateFormSettings("gap", value)}
-                    />
-                    <FieldRenderer
-                      config={{
-                        id: "align",
-                        type: "select",
-                        label: "Vertical Alignment",
-                        options: [
-                          { label: "Top", value: "start" },
-                          { label: "Center", value: "center" },
-                          { label: "Bottom", value: "end" },
-                        ],
-                      }}
-                      value={componentForm.settings?.align || "start"}
-                      onChange={(value) => updateFormSettings("align", value)}
-                    />
-                  </div>
-                )}{" "}
-                {componentForm.type === "column" && (
-                  <div className="config-grid">
-                    <FieldRenderer
-                      config={{
-                        id: "width",
-                        type: "select",
-                        label: "Column Width",
-                        options: [
-                          { label: "Auto", value: "auto" },
-                          { label: "1/12", value: "1/12" },
-                          { label: "2/12", value: "2/12" },
-                          { label: "3/12", value: "3/12" },
-                          { label: "4/12", value: "4/12" },
-                          { label: "6/12", value: "6/12" },
-                          { label: "8/12", value: "8/12" },
-                          { label: "12/12", value: "12/12" },
-                        ],
-                      }}
-                      value={componentForm.settings?.width || "auto"}
-                      onChange={(value) => updateFormSettings("width", value)}
-                    />
-                  </div>
-                )}
-              </div>
-            )}{" "}
-            <div className="form-actions">
-              <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
-                Cancel
-              </Button>{" "}
-              <Button onClick={handleSaveComponent} disabled={createComponentMutation.isPending || updateComponentMutation.isPending}>
-                {isCreateMode ? "Create Component" : "Save Changes"}
-              </Button>
-            </div>
-          </div>
+          <ComponentForm
+            component={convertComponentToComponentData(editingComponent)}
+            onSave={handleFormSubmit}
+            onCancel={handleCloseForm}
+            error={getErrorMessage(createComponentMutation.error) || getErrorMessage(updateComponentMutation.error)}
+            isLoading={createComponentMutation.isPending || updateComponentMutation.isPending}
+          />
         </DialogContent>
       </Dialog>
     </div>
   );
-};
+}

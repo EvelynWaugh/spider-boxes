@@ -14,6 +14,7 @@ use SpiderBoxes\Core\FieldRegistry;
 use SpiderBoxes\Core\ComponentRegistry;
 use SpiderBoxes\Core\ComponentFactory;
 use SpiderBoxes\Core\SectionRegistry;
+use SpiderBoxes\Core\FieldConfigGenerator;
 use SpiderBoxes\API\RestRoutes;
 use SpiderBoxes\WooCommerce\ReviewsManager;
 use SpiderBoxes\Database\DatabaseManager;
@@ -74,22 +75,25 @@ class SpiderBoxes {
 		$builder->addDefinitions(
 			array(
 				// Full class names
-				FieldRegistry::class     => \DI\autowire(),
-				ComponentRegistry::class => \DI\autowire(),
-				ComponentFactory::class  => \DI\autowire(),
-				SectionRegistry::class   => \DI\autowire(),
-				AdminPages::class        => \DI\autowire(),
-				RestRoutes::class        => \DI\autowire(),
-				ReviewsManager::class    => \DI\autowire(),
+				FieldRegistry::class        => \DI\autowire(),
+				FieldConfigGenerator::class => \DI\autowire(),
+				ComponentRegistry::class    => \DI\autowire(),
+				ComponentFactory::class     => \DI\autowire(),
+				SectionRegistry::class      => \DI\autowire(),
+				AdminPages::class           => \DI\autowire(),
+				RestRoutes::class           => \DI\autowire(),
+				ReviewsManager::class       => \DI\autowire(),
 
 				// Simple aliases for easier access
-				'fieldRegistry'          => \DI\get( FieldRegistry::class ),
-				'componentRegistry'      => \DI\get( ComponentRegistry::class ),
-				'componentFactory'       => \DI\get( ComponentFactory::class ),
-				'sectionRegistry'        => \DI\get( SectionRegistry::class ),
-				'adminPages'             => \DI\get( AdminPages::class ),
-				'restRoutes'             => \DI\get( RestRoutes::class ),
-				'reviewsManager'         => \DI\get( ReviewsManager::class ),
+				'fieldRegistry'             => \DI\get( FieldRegistry::class ),
+				'fieldConfigGenerator'      => \DI\get( FieldConfigGenerator::class ),
+				'componentRegistry'         => \DI\get( ComponentRegistry::class ),
+				'componentFactory'          => \DI\get( ComponentFactory::class ),
+				'sectionRegistry'           => \DI\get( SectionRegistry::class ),
+				'adminPages'                => \DI\get( AdminPages::class ),
+				'restRoutes'                => \DI\get( RestRoutes::class ),
+				'reviewsManager'            => \DI\get( ReviewsManager::class ),
+
 			)
 		);
 

@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { FieldForm } from "./forms/FieldForm";
 import { useAPI } from "@/hooks/useAPI";
 import { doAction, applyFilters } from "@/hooks/createHooks";
-import { convertFieldToFieldData, type Field, type FieldData } from "@/utils/field";
+import { convertFieldToFieldData, type Field } from "@/utils/field";
 
 export function FieldsManager() {
   const [isFormOpen, setIsFormOpen] = useState(false);

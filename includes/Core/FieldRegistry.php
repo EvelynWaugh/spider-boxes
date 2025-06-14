@@ -233,9 +233,10 @@ class FieldRegistry {
 		// Then merge/override with database types (these can override or add custom types)
 		$db_types_by_id = array();
 		foreach ( $db_field_types as $db_type ) {
-			$db_types_by_id[ $db_type['id'] ] = array_merge(
+			$db_types_by_id[ $db_type['type'] ] = array_merge(
 				$db_type,
 				array(
+					'id'         => $db_type['type'],
 					'type'       => $db_type['type'],
 					'name'       => ucfirst( str_replace( '_', ' ', $db_type['type'] ) ),
 					'meta_field' => false,

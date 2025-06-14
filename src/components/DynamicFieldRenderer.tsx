@@ -27,11 +27,6 @@ interface Product {
   image: string[] | null;
 }
 
-interface FieldOption {
-  label: string;
-  value?: string;
-}
-
 export interface DynamicField {
   id: string;
   type: string;
@@ -39,7 +34,7 @@ export interface DynamicField {
   description?: string;
   value: any;
   required?: boolean;
-  options?: Record<string, FieldOption>;
+  options?: Record<string, string>;
   min?: number;
   max?: number;
   step?: number;
@@ -79,91 +74,6 @@ export const DynamicFieldRenderer: React.FC<DynamicFieldRendererProps> = ({
 }) => {
   const { get } = useAPI();
   const validateField = useFieldValidation(field, validationRules);
-  // Validation function
-  //   const validateField = useCallback(
-  //     (fieldValue: any) => {
-  //       const errors: string[] = [];
-  //       console.log(fieldValue, validationRules);
-  //       const actualValue = fieldValue.value;
-  //       // Built-in required validation
-  //       if (
-  //         validationRules?.required &&
-  //         (!actualValue ||
-  //           actualValue === "" ||
-  //           (Array.isArray(actualValue) && actualValue.length === 0))
-  //       ) {
-  //         console.log("PUSH ERROR");
-  //         errors.push(`${field.title} is required`);
-  //       }
-
-  //       // Custom validation rules
-  //       if (validationRules) {
-  //         if (
-  //           validationRules.minLength &&
-  //           typeof actualValue === "string" &&
-  //           actualValue.length < validationRules.minLength
-  //         ) {
-  //           errors.push(
-  //             `${field.title} must be at least ${validationRules.minLength} characters`
-  //           );
-  //         }
-
-  //         if (
-  //           validationRules.maxLength &&
-  //           typeof actualValue === "string" &&
-  //           actualValue.length > validationRules.maxLength
-  //         ) {
-  //           errors.push(
-  //             `${field.title} must not exceed ${validationRules.maxLength} characters`
-  //           );
-  //         }
-
-  //         if (
-  //           validationRules.min !== undefined &&
-  //           typeof actualValue === "number" &&
-  //           actualValue < validationRules.min
-  //         ) {
-  //           errors.push(`${field.title} must be at least ${validationRules.min}`);
-  //         }
-
-  //         if (
-  //           validationRules.max !== undefined &&
-  //           typeof actualValue === "number" &&
-  //           actualValue > validationRules.max
-  //         ) {
-  //           errors.push(`${field.title} must not exceed ${validationRules.max}`);
-  //         }
-
-  //         if (validationRules.pattern) {
-  //           if (typeof validationRules.pattern === "string") {
-  //             const patternString = validationRules.pattern.slice(1, -1);
-
-  //             // 2. Create a new RegExp object from the cleaned string.
-  //             validationRules.pattern = new RegExp(patternString);
-  //           }
-  //         }
-  //         if (
-  //           validationRules.pattern &&
-  //           actualValue !== "" &&
-  //           !validationRules.pattern.test(actualValue)
-  //         ) {
-  //           errors.push(`${field.title} format is invalid`);
-  //         }
-
-  //         if (validationRules.custom) {
-  //           const customError = validationRules.custom(actualValue);
-  //           if (customError) {
-  //             errors.push(customError);
-  //           }
-  //         }
-  //       }
-  //       console.log("errors", errors);
-  //       return errors.length > 0 ? errors[0] : undefined;
-  //     },
-  //     [field, validationRules]
-  //   );
-
-  //   console.log(field, value);
 
   // Fetch products for selection
   const { data: productsData, isLoading: isLoadingProducts } = useQuery({
@@ -273,9 +183,9 @@ export const DynamicFieldRenderer: React.FC<DynamicFieldRendererProps> = ({
               </SelectTrigger>
               <SelectContent>
                 {field.options &&
-                  Object.entries(field.options).map(([optionValue, option]) => (
+                  Object.entries(field.options).map(([optionValue, optionLabel]) => (
                     <SelectItem key={optionValue} value={optionValue}>
-                      {option.label}
+                      {optionLabel}
                     </SelectItem>
                   ))}
               </SelectContent>
@@ -337,7 +247,7 @@ export const DynamicFieldRenderer: React.FC<DynamicFieldRendererProps> = ({
           return (
             <div>
               <div className="space-y-2">
-                {Object.entries(field.options).map(([optionValue, option]) => (
+                {Object.entries(field.options).map(([optionValue, optionLabel]) => (
                   <label key={optionValue} className="flex items-center">
                     <input
                       type="checkbox"
@@ -351,7 +261,7 @@ export const DynamicFieldRenderer: React.FC<DynamicFieldRendererProps> = ({
                       onBlur={handleBlur}
                       className="rounded border-gray-300 text-primary-600 shadow-sm focus:border-primary-300 focus:ring focus:ring-primary-200 focus:ring-opacity-50"
                     />
-                    <span className="ml-2">{option.label}</span>
+                    <span className="ml-2">{optionLabel}</span>
                   </label>
                 ))}
               </div>
@@ -380,7 +290,7 @@ export const DynamicFieldRenderer: React.FC<DynamicFieldRendererProps> = ({
         return (
           <div className="space-y-2">
             {field.options &&
-              Object.entries(field.options).map(([optionValue, option]) => (
+              Object.entries(field.options).map(([optionValue, optionLabel]) => (
                 <label key={optionValue} className="flex items-center">
                   <input
                     type="radio"
@@ -390,7 +300,7 @@ export const DynamicFieldRenderer: React.FC<DynamicFieldRendererProps> = ({
                     onChange={(e) => handleChange(e.target.value)}
                     className="border-gray-300 text-primary-600 shadow-sm focus:border-primary-300 focus:ring focus:ring-primary-200 focus:ring-opacity-50"
                   />
-                  <span className="ml-2">{option.label}</span>
+                  <span className="ml-2">{optionLabel}</span>
                 </label>
               ))}
           </div>

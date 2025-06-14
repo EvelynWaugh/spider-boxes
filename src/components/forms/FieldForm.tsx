@@ -142,10 +142,7 @@ export const FieldForm: React.FC<FieldFormProps> = ({ field, onSave, onCancel, e
     value: selectedType,
     required: true,
     options: fieldTypesData.reduce((acc: Record<string, any>, fieldType: FieldType) => {
-      acc[fieldType.type] = {
-        label: fieldType.name,
-        value: fieldType.type,
-      };
+      acc[fieldType.type] = fieldType.name;
       return acc;
     }, {}),
   };

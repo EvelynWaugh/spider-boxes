@@ -175,6 +175,10 @@ class ComponentRegistry {
 		return true;
 	}
 
+	public function get_all_component_types() {
+		$component_types = \SpiderBoxes\Database\DatabaseManager::get_component_types();
+	}
+
 	/**
 	 * Create a component with default children
 	 *

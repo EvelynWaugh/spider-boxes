@@ -701,18 +701,10 @@ class ReviewsManager {
 				'description' => esc_html__( 'The approval status of the review', 'spider-boxes' ),
 				'value'       => 'hold',
 				'options'     => array(
-					'approve' => array(
-						'label' => esc_html__( 'Approved', 'spider-boxes' ),
-					),
-					'hold'    => array(
-						'label' => esc_html__( 'Hold', 'spider-boxes' ),
-					),
-					'spam'    => array(
-						'label' => esc_html__( 'Spam', 'spider-boxes' ),
-					),
-					'trash'   => array(
-						'label' => esc_html__( 'Trash', 'spider-boxes' ),
-					),
+					'approve' => esc_html__( 'Approved', 'spider-boxes' ),
+					'hold'    => esc_html__( 'Hold', 'spider-boxes' ),
+					'spam'    => esc_html__( 'Spam', 'spider-boxes' ),
+					'trash'   => esc_html__( 'Trash', 'spider-boxes' ),
 				),
 				'required'    => true,
 				'meta_field'  => false,
@@ -814,11 +806,11 @@ class ReviewsManager {
 		foreach ( $db_fields as $db_field ) {
 			$field_id = $db_field['id'];
 			if ( $field_id ) {
-				$string_field_id       = $db_field['name'] . '_' . (string) $field_id;
+
 				$unserialized_settings = maybe_unserialize( $db_field['settings'] ?? '' );
 				// Convert database field format to match registry format
 				$formatted_field = array(
-					'id'          => $string_field_id,
+					'id'          => $db_field['name'], // name is used as the ID for db fields
 					'type'        => $db_field['type'],
 					'title'       => $db_field['title'],
 					'description' => $db_field['description'] ?? '',
@@ -832,7 +824,7 @@ class ReviewsManager {
 					$formatted_field = array_merge( $formatted_field, $unserialized_settings );
 				}
 
-				$merged_fields[ $string_field_id ] = $formatted_field;
+				$merged_fields[ $db_field['name'] ] = $formatted_field;
 			}
 		}
 

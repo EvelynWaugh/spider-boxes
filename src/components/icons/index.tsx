@@ -5,7 +5,7 @@ interface IconProps {
   size?: number;
 }
 
-export const PlusIcon: React.FC<IconProps> = ({className = "", size = 16}) => (
+export const PlusIcon: React.FC<IconProps> = ({ className = "", size = 16 }) => (
   <svg
     className={className}
     width={size}
@@ -22,10 +22,7 @@ export const PlusIcon: React.FC<IconProps> = ({className = "", size = 16}) => (
   </svg>
 );
 
-export const PencilIcon: React.FC<IconProps> = ({
-  className = "",
-  size = 16,
-}) => (
+export const PencilIcon: React.FC<IconProps> = ({ className = "", size = 16 }) => (
   <svg
     className={className}
     width={size}
@@ -42,7 +39,7 @@ export const PencilIcon: React.FC<IconProps> = ({
   </svg>
 );
 
-export const TrashIcon: React.FC<IconProps> = ({className = "", size = 16}) => (
+export const TrashIcon: React.FC<IconProps> = ({ className = "", size = 16 }) => (
   <svg
     className={className}
     width={size}
@@ -63,10 +60,7 @@ export const TrashIcon: React.FC<IconProps> = ({className = "", size = 16}) => (
   </svg>
 );
 
-export const ChevronDownIcon: React.FC<IconProps> = ({
-  className = "",
-  size = 16,
-}) => (
+export const ChevronDownIcon: React.FC<IconProps> = ({ className = "", size = 16 }) => (
   <svg
     className={className}
     width={size}
@@ -82,10 +76,7 @@ export const ChevronDownIcon: React.FC<IconProps> = ({
   </svg>
 );
 
-export const ChevronUpIcon: React.FC<IconProps> = ({
-  className = "",
-  size = 16,
-}) => (
+export const ChevronUpIcon: React.FC<IconProps> = ({ className = "", size = 16 }) => (
   <svg
     className={className}
     width={size}
@@ -101,7 +92,7 @@ export const ChevronUpIcon: React.FC<IconProps> = ({
   </svg>
 );
 
-export const EyeIcon: React.FC<IconProps> = ({className = "", size = 16}) => (
+export const EyeIcon: React.FC<IconProps> = ({ className = "", size = 16 }) => (
   <svg
     className={className}
     width={size}
@@ -118,7 +109,7 @@ export const EyeIcon: React.FC<IconProps> = ({className = "", size = 16}) => (
   </svg>
 );
 
-export const SaveIcon: React.FC<IconProps> = ({className = "", size = 16}) => (
+export const SaveIcon: React.FC<IconProps> = ({ className = "", size = 16 }) => (
   <svg
     className={className}
     width={size}
@@ -136,7 +127,7 @@ export const SaveIcon: React.FC<IconProps> = ({className = "", size = 16}) => (
   </svg>
 );
 
-export const XIcon: React.FC<IconProps> = ({className = "", size = 16}) => (
+export const XIcon: React.FC<IconProps> = ({ className = "", size = 16 }) => (
   <svg
     className={className}
     width={size}
@@ -150,5 +141,22 @@ export const XIcon: React.FC<IconProps> = ({className = "", size = 16}) => (
   >
     <path d="M18 6 6 18" />
     <path d="m6 6 12 12" />
+  </svg>
+);
+
+export const SearchIcon: React.FC<IconProps> = ({ className = "", size = 16 }) => (
+  <svg
+    className={className}
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <circle cx="11" cy="11" r="8" />
+    <path d="m21 21-4.35-4.35" />
   </svg>
 );

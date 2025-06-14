@@ -807,28 +807,16 @@ class DatabaseManager {
 	/**
 	 * Get all components from database
 	 *
-	 * @param string $parent_id Optional parent ID to filter by.
-	 * @param string $section_id Optional section ID to filter by.
 	 * @param string $context Optional context to filter by.
 	 * @return array Array of component configurations.
 	 */
-	public static function get_all_components( $parent_id = '', $section_id = '', $context = '' ) {
+	public static function get_all_components( $context = '' ) {
 		global $wpdb;
 
 		$components_table = $wpdb->prefix . 'spider_boxes_components';
 
 		$where_conditions = array();
 		$prepare_values   = array();
-
-		if ( ! empty( $parent_id ) ) {
-			$where_conditions[] = 'parent_id = %s';
-			$prepare_values[]   = $parent_id;
-		}
-
-		if ( ! empty( $section_id ) ) {
-			$where_conditions[] = 'section_id = %s';
-			$prepare_values[]   = $section_id;
-		}
 
 		if ( ! empty( $context ) ) {
 			$where_conditions[] = 'context = %s';
@@ -1139,6 +1127,30 @@ class DatabaseManager {
 	}
 
 	/**
+	 * Delete a component type
+	 *
+	 * @param string $id Component type identifier.
+	 * @return bool Success status.
+	 */
+	public static function delete_component_type( $id ) {
+		global $wpdb;
+
+		$component_types_table = $wpdb->prefix . 'spider_boxes_component_types';
+
+		try {
+			$result = $wpdb->delete(
+				$component_types_table,
+				array( 'id' => $id ),
+				array( '%s' )
+			); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
+
+			return false !== $result;
+		} catch ( \Exception $e ) {
+			return false;
+		}
+	}
+
+	/**
 	 * Get all available section types from database
 	 *
 	 * @return array Array of section types.
@@ -1222,5 +1234,29 @@ class DatabaseManager {
 		}
 
 		return false !== $result;
+	}
+
+	/**
+	 * Delete a section type
+	 *
+	 * @param string $id Section type identifier.
+	 * @return bool Success status.
+	 */
+	public static function delete_section_type( $id ) {
+		global $wpdb;
+
+		$section_types_table = $wpdb->prefix . 'spider_boxes_section_types';
+
+		try {
+			$result = $wpdb->delete(
+				$section_types_table,
+				array( 'id' => $id ),
+				array( '%s' )
+			); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
+
+			return false !== $result;
+		} catch ( \Exception $e ) {
+			return false;
+		}
 	}
 }

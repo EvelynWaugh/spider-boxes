@@ -1,6 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import {QueryClient, QueryClientProvider} from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import "@/styles/frontend.css";
 
 const queryClient = new QueryClient({
@@ -21,20 +21,10 @@ fieldContainers.forEach((container) => {
 
   if (fieldType && fieldId) {
     (async () => {
-      const {FieldRenderer} = await import("@/components/FieldRenderer");
-
       ReactDOM.createRoot(container as HTMLElement).render(
         <React.StrictMode>
-          <QueryClientProvider client={queryClient}>
-            <FieldRenderer
-              config={{
-                id: fieldId,
-                type: fieldType,
-                label: `Field ${fieldId}`,
-              }}
-            />
-          </QueryClientProvider>
-        </React.StrictMode>
+          <QueryClientProvider client={queryClient}></QueryClientProvider>
+        </React.StrictMode>,
       );
     })();
   }

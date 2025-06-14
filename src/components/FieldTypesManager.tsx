@@ -5,7 +5,7 @@ import { PlusIcon, PencilIcon, TrashIcon, EyeIcon } from "@/components/icons";
 import { Button } from "./ui/Button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/Dialog";
 import { FieldTypeForm, type FieldTypeData } from "@/components/forms/FieldTypeForm";
-import { FieldRenderer } from "./FieldRenderer";
+
 import { useAPI } from "@/hooks/useAPI";
 import { doAction, applyFilters } from "@/hooks/createHooks";
 
@@ -31,7 +31,7 @@ interface FieldPreview {
     description?: string;
     placeholder?: string;
     required?: boolean;
-    options?: Array<{ label: string; value: string }>;
+    options?: Record<string, string>; // For select/radio fields
     [key: string]: any;
   };
   value?: any;
@@ -436,13 +436,7 @@ export const FieldTypesManager: React.FC = () => {
 
             <div className="preview-field">
               <h4 className="preview-title">Live Preview</h4>
-              <div className="preview-container">
-                <FieldRenderer
-                  config={previewConfig.config}
-                  value={previewConfig.value}
-                  onChange={(value) => setPreviewConfig((prev) => ({ ...prev, value }))}
-                />
-              </div>
+              <div className="preview-container"></div>
             </div>
 
             {previewConfig.value !== undefined && previewConfig.value !== "" && (

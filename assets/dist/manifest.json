@@ -19,8 +19,7 @@
     ],
     "file": "admin.js",
     "imports": [
-      "_QueryClientProvider-14c10ab9.js",
-      "_FieldRenderer-f9cee68e.js"
+      "_QueryClientProvider-14c10ab9.js"
     ],
     "isEntry": true,
     "src": "src/admin.tsx"
@@ -32,9 +31,6 @@
   "src/frontend.tsx": {
     "css": [
       "frontend.css"
-    ],
-    "dynamicImports": [
-      "_FieldRenderer-f9cee68e.js"
     ],
     "file": "frontend.js",
     "imports": [

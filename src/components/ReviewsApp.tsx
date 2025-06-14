@@ -1,6 +1,6 @@
-import React, {useState, useMemo, useEffect, useCallback} from "react";
-import {useQuery, useMutation, useQueryClient} from "@tanstack/react-query";
-import {useForm} from "@tanstack/react-form";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useForm } from "@tanstack/react-form";
 import {
   createColumnHelper,
   getCoreRowModel,
@@ -11,46 +11,18 @@ import {
   type ColumnFiltersState,
   type PaginationState,
 } from "@tanstack/react-table";
-import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from "@dnd-kit/core";
-import {
-  arrayMove,
-  sortableKeyboardCoordinates,
-  horizontalListSortingStrategy,
-} from "@dnd-kit/sortable";
-import {
-  useSortable,
-  SortableContext as SortableProvider,
-} from "@dnd-kit/sortable";
-import {CSS} from "@dnd-kit/utilities";
-import {motion, AnimatePresence} from "framer-motion";
-import {Button} from "@/components/ui/Button";
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
+import { arrayMove, sortableKeyboardCoordinates, horizontalListSortingStrategy } from "@dnd-kit/sortable";
+import { useSortable, SortableContext as SortableProvider } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { motion, AnimatePresence } from "framer-motion";
+import { Button } from "@/components/ui/Button";
 
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/Dialog";
-import {
-  Pencil1Icon,
-  TrashIcon,
-  CheckIcon,
-  Cross1Icon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  PlusIcon,
-} from "@radix-ui/react-icons";
-import {useAPI} from "../hooks/useAPI";
-import {type DynamicField, DynamicFieldRenderer} from "./DynamicFieldRenderer";
-import {AddReviewDialog} from "./AddReviewDialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/Dialog";
+import { Pencil1Icon, TrashIcon, CheckIcon, Cross1Icon, ChevronLeftIcon, ChevronRightIcon, PlusIcon } from "@radix-ui/react-icons";
+import { useAPI } from "../hooks/useAPI";
+import { type DynamicField, DynamicFieldRenderer } from "./DynamicFieldRenderer";
+import { AddReviewDialog } from "./AddReviewDialog";
 
 interface Review {
   id: number;
@@ -78,9 +50,8 @@ const SortableHeaderCell: React.FC<{
   id: string;
   children: React.ReactNode;
   className?: string;
-}> = ({id, children, className}) => {
-  const {attributes, listeners, setNodeRef, transform, transition, isDragging} =
-    useSortable({id});
+}> = ({ id, children, className }) => {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -95,18 +66,12 @@ const SortableHeaderCell: React.FC<{
       style={style}
       {...attributes}
       {...listeners}
-      className={`spider-boxes-table-header-cell sortable-header ${className || ""} ${
-        isDragging ? "dragging" : ""
-      }`}
+      className={`spider-boxes-table-header-cell sortable-header ${className || ""} ${isDragging ? "dragging" : ""}`}
       title="Drag to reorder columns"
     >
       <span className="flex items-center space-x-2">
         <span>{children}</span>
-        <svg
-          className="w-3 h-3 text-gray-400"
-          fill="currentColor"
-          viewBox="0 0 6 10"
-        >
+        <svg className="w-3 h-3 text-gray-400" fill="currentColor" viewBox="0 0 6 10">
           <circle cx="1" cy="2" r="1" />
           <circle cx="1" cy="5" r="1" />
           <circle cx="1" cy="8" r="1" />
@@ -119,22 +84,14 @@ const SortableHeaderCell: React.FC<{
   );
 };
 
-export const ReviewsApp: React.FC<ReviewsAppProps> = ({productId}) => {
+export const ReviewsApp: React.FC<ReviewsAppProps> = ({ productId }) => {
   const queryClient = useQueryClient();
-  const {get, patch, del, getReviewFields} = useAPI();
+  const { get, patch, del, getReviewFields } = useAPI();
 
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
-  const [columnOrder, setColumnOrder] = useState<string[]>([
-    "id",
-    "product_name",
-    "author_name",
-    "rating",
-    "status",
-    "date",
-    "actions",
-  ]);
+  const [columnOrder, setColumnOrder] = useState<string[]>(["id", "product_name", "author_name", "rating", "status", "date", "actions"]);
   const [selectedReview, setSelectedReview] = useState<Review | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   // const [fieldValues, setFieldValues] = useState<Record<string, any>>({});
@@ -150,7 +107,7 @@ export const ReviewsApp: React.FC<ReviewsAppProps> = ({productId}) => {
 
   // Reset pagination when filters change
   useEffect(() => {
-    setPagination((prev) => ({...prev, pageIndex: 0}));
+    setPagination((prev) => ({ ...prev, pageIndex: 0 }));
   }, [globalFilter, columnFilters, productId]);
 
   // Debounce search input
@@ -167,11 +124,11 @@ export const ReviewsApp: React.FC<ReviewsAppProps> = ({productId}) => {
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
-    })
+    }),
   );
 
   // Fetch review fields
-  const {data: fieldsData, isLoading: fieldsLoading} = useQuery({
+  const { data: fieldsData, isLoading: fieldsLoading } = useQuery({
     queryKey: ["review-fields"],
     queryFn: getReviewFields,
     staleTime: 10 * 60 * 1000, // 10 minutes
@@ -186,9 +143,7 @@ export const ReviewsApp: React.FC<ReviewsAppProps> = ({productId}) => {
     try {
       const fields = Object.values(fieldsData.fields);
       // Ensure we have an array and all elements are valid
-      return Array.isArray(fields)
-        ? fields.filter((field) => field && typeof field === "object")
-        : [];
+      return Array.isArray(fields) ? fields.filter((field) => field && typeof field === "object") : [];
     } catch (error) {
       console.error("Error processing review fields:", error);
       return [];
@@ -197,7 +152,7 @@ export const ReviewsApp: React.FC<ReviewsAppProps> = ({productId}) => {
 
   const form = useForm({
     defaultValues: {} as Record<string, any>,
-    onSubmit: async ({value}) => {
+    onSubmit: async ({ value }) => {
       // The submit handler will now be called by form.handleSubmit()
       // The `value` here is the entire form state.
       console.log("Form submitted with values:", value);
@@ -212,51 +167,48 @@ export const ReviewsApp: React.FC<ReviewsAppProps> = ({productId}) => {
   });
 
   // Memoize the field initialization function
-  const initializeFormFields = useCallback(
-    (review: Review, fields: DynamicField[]) => {
-      if (!Array.isArray(fields) || fields.length === 0) {
-        return {};
+  const initializeFormFields = useCallback((review: Review, fields: DynamicField[]) => {
+    if (!Array.isArray(fields) || fields.length === 0) {
+      return {};
+    }
+    const initialValues: Record<string, any> = {};
+
+    fields.forEach((field) => {
+      // Ensure field is valid
+      if (!field || !field.id) return;
+
+      let currentValue;
+      switch (field.id) {
+        case "author_name":
+          currentValue = review.author_name;
+          break;
+        case "author_email":
+          currentValue = review.author_email;
+          break;
+        case "date":
+          currentValue = review.date;
+          break;
+        case "content":
+          currentValue = review.content;
+          break;
+        case "status":
+          currentValue = review.status;
+          break;
+        case "rating":
+          currentValue = review.rating;
+          break;
+        default:
+          if (field.meta_field) {
+            currentValue = review.meta?.[field.id] || field.value;
+          } else {
+            currentValue = field.value;
+          }
       }
-      const initialValues: Record<string, any> = {};
+      initialValues[field.id] = currentValue;
+    });
 
-      fields.forEach((field) => {
-        // Ensure field is valid
-        if (!field || !field.id) return;
-
-        let currentValue;
-        switch (field.id) {
-          case "author_name":
-            currentValue = review.author_name;
-            break;
-          case "author_email":
-            currentValue = review.author_email;
-            break;
-          case "date":
-            currentValue = review.date;
-            break;
-          case "content":
-            currentValue = review.content;
-            break;
-          case "status":
-            currentValue = review.status;
-            break;
-          case "rating":
-            currentValue = review.rating;
-            break;
-          default:
-            if (field.meta_field) {
-              currentValue = review.meta?.[field.id] || field.value;
-            } else {
-              currentValue = field.value;
-            }
-        }
-        initialValues[field.id] = currentValue;
-      });
-
-      return initialValues;
-    },
-    []
-  );
+    return initialValues;
+  }, []);
 
   // Memoize the field change handler
   //   const handleFieldChange = useCallback(
@@ -337,14 +289,7 @@ export const ReviewsApp: React.FC<ReviewsAppProps> = ({productId}) => {
     error,
     isFetching,
   } = useQuery({
-    queryKey: [
-      "reviews",
-      productId,
-      pagination.pageIndex + 1,
-      pagination.pageSize,
-      debouncedGlobalFilter,
-      columnFilters,
-    ],
+    queryKey: ["reviews", productId, pagination.pageIndex + 1, pagination.pageSize, debouncedGlobalFilter, columnFilters],
     queryFn: () => {
       const params = new URLSearchParams();
 
@@ -386,10 +331,9 @@ export const ReviewsApp: React.FC<ReviewsAppProps> = ({productId}) => {
 
   // Update review mutation
   const updateReviewMutation = useMutation({
-    mutationFn: ({id, data}: {id: number; data: Partial<Review>}) =>
-      patch(`/reviews/${id}`, data),
+    mutationFn: ({ id, data }: { id: number; data: Partial<Review> }) => patch(`/reviews/${id}`, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({queryKey: ["reviews"]});
+      queryClient.invalidateQueries({ queryKey: ["reviews"] });
       setIsDialogOpen(false);
       // setFieldValues({});
       setSelectedReview(null);
@@ -442,14 +386,14 @@ export const ReviewsApp: React.FC<ReviewsAppProps> = ({productId}) => {
         console.error("Error saving changes:", error);
       }
     },
-    [selectedReview, updateReviewMutation]
+    [selectedReview, updateReviewMutation],
   );
 
   // Delete review mutation
   const deleteReviewMutation = useMutation({
     mutationFn: (id: number) => del(`/reviews/${id}`),
     onSuccess: () => {
-      queryClient.invalidateQueries({queryKey: ["reviews"]});
+      queryClient.invalidateQueries({ queryKey: ["reviews"] });
     },
   });
 
@@ -470,9 +414,7 @@ export const ReviewsApp: React.FC<ReviewsAppProps> = ({productId}) => {
         cell: (info) => (
           <div>
             <div className="font-medium">{info.getValue()}</div>
-            <div className="text-sm text-gray-500">
-              {info.row.original.author_email}
-            </div>
+            <div className="text-sm text-gray-500">{info.row.original.author_email}</div>
           </div>
         ),
         filterFn: "includesString",
@@ -484,18 +426,14 @@ export const ReviewsApp: React.FC<ReviewsAppProps> = ({productId}) => {
             {[1, 2, 3, 4, 5].map((star) => (
               <svg
                 key={star}
-                className={`w-4 h-4 ${
-                  star <= info.getValue() ? "text-yellow-400" : "text-gray-300"
-                }`}
+                className={`w-4 h-4 ${star <= info.getValue() ? "text-yellow-400" : "text-gray-300"}`}
                 fill="currentColor"
                 viewBox="0 0 20 20"
               >
                 <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
               </svg>
             ))}
-            <span className="ml-2 text-sm text-gray-600">
-              ({info.getValue()})
-            </span>
+            <span className="ml-2 text-sm text-gray-600">({info.getValue()})</span>
           </div>
         ),
         size: 150,
@@ -512,9 +450,7 @@ export const ReviewsApp: React.FC<ReviewsAppProps> = ({productId}) => {
           };
 
           return (
-            <span
-              className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${statusColors[status]}`}
-            >
+            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${statusColors[status]}`}>
               {status.charAt(0).toUpperCase() + status.slice(1)}
             </span>
           );
@@ -557,7 +493,7 @@ export const ReviewsApp: React.FC<ReviewsAppProps> = ({productId}) => {
         size: 120,
       }),
     ],
-    [deleteReviewMutation]
+    [deleteReviewMutation],
   );
   const table = useReactTable({
     data: reviews,
@@ -584,7 +520,7 @@ export const ReviewsApp: React.FC<ReviewsAppProps> = ({productId}) => {
   });
 
   const handleDragEnd = (event: DragEndEvent) => {
-    const {active, over} = event;
+    const { active, over } = event;
 
     if (active.id !== over?.id) {
       setColumnOrder((items) => {
@@ -595,13 +531,10 @@ export const ReviewsApp: React.FC<ReviewsAppProps> = ({productId}) => {
     }
   };
 
-  const handleStatusChange = (
-    reviewId: number,
-    newStatus: Review["status"]
-  ) => {
+  const handleStatusChange = (reviewId: number, newStatus: Review["status"]) => {
     updateReviewMutation.mutate({
       id: reviewId,
-      data: {status: newStatus},
+      data: { status: newStatus },
     });
   };
 
@@ -637,10 +570,7 @@ export const ReviewsApp: React.FC<ReviewsAppProps> = ({productId}) => {
 
         {/* Add New Review Button */}
         <div className="mb-6">
-          <Button
-            onClick={() => setIsAddReviewDialogOpen(true)}
-            className="flex items-center space-x-2"
-          >
+          <Button onClick={() => setIsAddReviewDialogOpen(true)} className="flex items-center space-x-2">
             <PlusIcon className="w-4 h-4" />
             <span>Add New Review</span>
           </Button>
@@ -660,19 +590,11 @@ export const ReviewsApp: React.FC<ReviewsAppProps> = ({productId}) => {
           </div>
           <div className="flex gap-2">
             <select
-              value={
-                (columnFilters.find((f) => f.id === "status")
-                  ?.value as string) || ""
-              }
+              value={(columnFilters.find((f) => f.id === "status")?.value as string) || ""}
               onChange={(e) => {
                 const value = e.target.value;
                 setColumnFilters((prev) =>
-                  value
-                    ? [
-                        ...prev.filter((f) => f.id !== "status"),
-                        {id: "status", value},
-                      ]
-                    : prev.filter((f) => f.id !== "status")
+                  value ? [...prev.filter((f) => f.id !== "status"), { id: "status", value }] : prev.filter((f) => f.id !== "status"),
                 );
               }}
               className="filter-select"
@@ -710,16 +632,9 @@ export const ReviewsApp: React.FC<ReviewsAppProps> = ({productId}) => {
           <p className="text-gray-500 mb-4">No reviews found.</p>
         </div>
       ) : (
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragEnd={handleDragEnd}
-        >
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <div className="spider-boxes-table">
-            <SortableProvider
-              items={columnOrder}
-              strategy={horizontalListSortingStrategy}
-            >
+            <SortableProvider items={columnOrder} strategy={horizontalListSortingStrategy}>
               <div className="spider-boxes-table-header">
                 {columnOrder.map((columnId) => (
                   <SortableHeaderCell key={columnId} id={columnId}>
@@ -740,31 +655,19 @@ export const ReviewsApp: React.FC<ReviewsAppProps> = ({productId}) => {
                   <motion.div
                     key={row.id}
                     layout
-                    initial={{opacity: 0}}
-                    animate={{opacity: 1}}
-                    exit={{opacity: 0}}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
                     className="spider-boxes-table-row"
                   >
                     {columnOrder.map((columnId) => (
                       <div key={columnId} className="spider-boxes-table-cell">
-                        {columnId === "id" && (
-                          <span className="font-mono text-xs bg-gray-50 px-2 py-1 rounded">
-                            #{row.original.id}
-                          </span>
-                        )}
-                        {columnId === "product_name" && (
-                          <span className="font-medium">
-                            {row.original.product_name}
-                          </span>
-                        )}
+                        {columnId === "id" && <span className="font-mono text-xs bg-gray-50 px-2 py-1 rounded">#{row.original.id}</span>}
+                        {columnId === "product_name" && <span className="font-medium">{row.original.product_name}</span>}
                         {columnId === "author_name" && (
                           <div>
-                            <div className="font-medium">
-                              {row.original.author_name}
-                            </div>
-                            <div className="text-sm text-gray-500">
-                              {row.original.author_email}
-                            </div>
+                            <div className="font-medium">{row.original.author_name}</div>
+                            <div className="text-sm text-gray-500">{row.original.author_email}</div>
                           </div>
                         )}
                         {columnId === "rating" && (
@@ -772,20 +675,14 @@ export const ReviewsApp: React.FC<ReviewsAppProps> = ({productId}) => {
                             {[1, 2, 3, 4, 5].map((star) => (
                               <svg
                                 key={star}
-                                className={`w-4 h-4 ${
-                                  star <= row.original.rating
-                                    ? "text-yellow-400"
-                                    : "text-gray-300"
-                                }`}
+                                className={`w-4 h-4 ${star <= row.original.rating ? "text-yellow-400" : "text-gray-300"}`}
                                 fill="currentColor"
                                 viewBox="0 0 20 20"
                               >
                                 <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                               </svg>
                             ))}
-                            <span className="ml-2 text-sm text-gray-600">
-                              ({row.original.rating})
-                            </span>
+                            <span className="ml-2 text-sm text-gray-600">({row.original.rating})</span>
                           </div>
                         )}
                         {columnId === "status" && (
@@ -800,15 +697,10 @@ export const ReviewsApp: React.FC<ReviewsAppProps> = ({productId}) => {
                                     : "spider-boxes-badge-secondary"
                             }`}
                           >
-                            {row.original.status.charAt(0).toUpperCase() +
-                              row.original.status.slice(1)}
+                            {row.original.status.charAt(0).toUpperCase() + row.original.status.slice(1)}
                           </span>
                         )}
-                        {columnId === "date" && (
-                          <span className="text-gray-500">
-                            {new Date(row.original.date).toLocaleDateString()}
-                          </span>
-                        )}
+                        {columnId === "date" && <span className="text-gray-500">{new Date(row.original.date).toLocaleDateString()}</span>}
                         {columnId === "actions" && (
                           <div className="flex space-x-2">
                             <button
@@ -823,11 +715,7 @@ export const ReviewsApp: React.FC<ReviewsAppProps> = ({productId}) => {
                             </button>
                             <button
                               onClick={() => {
-                                if (
-                                  confirm(
-                                    "Are you sure you want to delete this review?"
-                                  )
-                                ) {
+                                if (confirm("Are you sure you want to delete this review?")) {
                                   deleteReviewMutation.mutate(row.original.id);
                                 }
                               }}
@@ -838,12 +726,7 @@ export const ReviewsApp: React.FC<ReviewsAppProps> = ({productId}) => {
                             </button>
                             {row.original.status === "hold" && (
                               <button
-                                onClick={() =>
-                                  handleStatusChange(
-                                    row.original.id,
-                                    "approved"
-                                  )
-                                }
+                                onClick={() => handleStatusChange(row.original.id, "approved")}
                                 className="text-green-600 hover:text-green-900"
                                 title="Approve review"
                               >
@@ -852,9 +735,7 @@ export const ReviewsApp: React.FC<ReviewsAppProps> = ({productId}) => {
                             )}
                             {row.original.status === "approved" && (
                               <button
-                                onClick={() =>
-                                  handleStatusChange(row.original.id, "hold")
-                                }
+                                onClick={() => handleStatusChange(row.original.id, "hold")}
                                 className="text-yellow-600 hover:text-yellow-900"
                                 title="Mark as hold"
                               >
@@ -876,35 +757,20 @@ export const ReviewsApp: React.FC<ReviewsAppProps> = ({productId}) => {
       <div className="flex items-center justify-between py-4">
         <div className="text-sm text-gray-700">
           Showing
-          {totalItems === 0
-            ? 0
-            : pagination.pageIndex * pagination.pageSize + 1}
+          {totalItems === 0 ? 0 : pagination.pageIndex * pagination.pageSize + 1}
           to
-          {Math.min(
-            (pagination.pageIndex + 1) * pagination.pageSize,
-            totalItems
-          )}
+          {Math.min((pagination.pageIndex + 1) * pagination.pageSize, totalItems)}
           of {totalItems} results
         </div>
         <div className="flex items-center space-x-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => table.previousPage()}
-            disabled={!table.getCanPreviousPage() || isFetching}
-          >
+          <Button variant="outline" size="sm" onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage() || isFetching}>
             <ChevronLeftIcon className="w-4 h-4" />
             Previous
           </Button>
           <span className="text-sm text-gray-700">
             Page {pagination.pageIndex + 1} of {totalPages}
           </span>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => table.nextPage()}
-            disabled={!table.getCanNextPage() || isFetching}
-          >
+          <Button variant="outline" size="sm" onClick={() => table.nextPage()} disabled={!table.getCanNextPage() || isFetching}>
             Next
             <ChevronRightIcon className="w-4 h-4" />
           </Button>
@@ -947,24 +813,15 @@ export const ReviewsApp: React.FC<ReviewsAppProps> = ({productId}) => {
                       Cancel
                     </Button>
                     <form.Subscribe
-                      selector={(state) => [
-                        state.canSubmit,
-                        state.isSubmitting,
-                      ]}
+                      selector={(state) => [state.canSubmit, state.isSubmitting]}
                       children={([canSubmit, isSubmitting]) => (
                         <Button
                           type="submit"
                           // onClick={handleSaveChanges}
                           variant="primary"
-                          disabled={
-                            !canSubmit ||
-                            isSubmitting ||
-                            updateReviewMutation.isPending
-                          }
+                          disabled={!canSubmit || isSubmitting || updateReviewMutation.isPending}
                         >
-                          {updateReviewMutation.isPending
-                            ? "Saving..."
-                            : "Save Changes"}
+                          {updateReviewMutation.isPending ? "Saving..." : "Save Changes"}
                         </Button>
                       )}
                     />
@@ -974,9 +831,7 @@ export const ReviewsApp: React.FC<ReviewsAppProps> = ({productId}) => {
             ) : (
               <div className="text-center py-8">
                 <p className="text-gray-500">
-                  {reviewFields.length === 0
-                    ? "Loading fields..."
-                    : "No review selected or fields not loaded."}
+                  {reviewFields.length === 0 ? "Loading fields..." : "No review selected or fields not loaded."}
                 </p>
               </div>
             )}
@@ -984,11 +839,7 @@ export const ReviewsApp: React.FC<ReviewsAppProps> = ({productId}) => {
         </DialogContent>
       </Dialog>
       {/* Add Review Dialog */}
-      <AddReviewDialog
-        isOpen={isAddReviewDialogOpen}
-        onOpenChange={setIsAddReviewDialogOpen}
-        productId={productId}
-      />
+      <AddReviewDialog isOpen={isAddReviewDialogOpen} onOpenChange={setIsAddReviewDialogOpen} productId={productId} />
     </div>
   );
 };

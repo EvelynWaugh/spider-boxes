@@ -1,121 +1,79 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
+import { PlusIcon, PencilIcon, TrashIcon, SearchIcon } from "@/components/icons";
 import { Button } from "./ui/Button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/Dialog";
-import { useAPI } from "../hooks/useAPI";
-import { FieldRenderer } from "./FieldRenderer";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/Dialog";
+import { SectionForm } from "./forms/SectionForm";
+import { useAPI } from "@/hooks/useAPI";
+import { doAction, applyFilters } from "@/hooks/createHooks";
+import { type Section } from "@/utils/section";
 
-interface Section {
-  id: string;
-  type: string;
-  title: string;
-  description?: string;
-  context: string;
-  screen?: string;
-  settings?: Record<string, any>;
-  components?: Record<string, any>;
-  is_active?: boolean;
-
-  created_at?: string;
-  updated_at?: string;
-}
-
-interface SectionType {
-  id: string;
-  name: string;
-  class_name?: string;
-  description: string;
-  supports: string[];
-}
-
-export const SectionsManager: React.FC = () => {
+export function SectionsManager() {
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingSection, setEditingSection] = useState<Section | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
   const queryClient = useQueryClient();
-  const { get, post, patch, del } = useAPI();
+  const api = useAPI();
 
-  const [selectedSection, setSelectedSection] = useState<Section | null>(null);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [isCreateMode, setIsCreateMode] = useState(false);
-  const [sectionForm, setSectionForm] = useState<Partial<Section>>({});
-
-  // Fetch sections
-  const { data: sections = [], isLoading: sectionsLoading } = useQuery({
+  const { data: sections = [], isLoading } = useQuery({
     queryKey: ["sections"],
-    queryFn: () => get("/sections"),
+    queryFn: () => api.get("/sections"),
   });
-  // Fetch section types
-  const { data: sectionTypesResponse = {}, isLoading: typesLoading } = useQuery({
-    queryKey: ["section-types"],
-    queryFn: () => get("/section-types"),
-  });
-  // Extract section types from the response and convert to array format
-  const sectionTypes = Object.entries(sectionTypesResponse.section_types || {}).map(([id, type]: [string, any]) => ({
-    id,
-    name: type.name || type.class_name?.split("\\").pop() || id,
-    class_name: type.class_name || "",
-    description: type.description || "",
-    supports: type.supports || [],
-  }));
 
-  // Create section mutation
   const createSectionMutation = useMutation({
-    mutationFn: (sectionData: Partial<Section>) => post("/sections", sectionData),
+    mutationFn: (sectionData: Partial<Section>) => api.post("/sections", sectionData),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["sections"] });
-      setIsDialogOpen(false);
-      setSectionForm({});
+      setIsFormOpen(false);
+      setEditingSection(null);
+      doAction("spiderBoxes.sectionCreated");
+    },
+    onError: (error) => {
+      console.error("Error creating section:", error);
     },
   });
 
-  // Update section mutation
   const updateSectionMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<Section> }) => patch(`/sections/${id}`, data),
+    mutationFn: ({ id, ...sectionData }: Partial<Section> & { id: string }) => api.put(`/sections/${id}`, sectionData),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["sections"] });
-      setIsDialogOpen(false);
-      setSelectedSection(null);
+      setIsFormOpen(false);
+      setEditingSection(null);
+      doAction("spiderBoxes.sectionUpdated");
+    },
+    onError: (error) => {
+      console.error("Error updating section:", error);
     },
   });
 
-  // Delete section mutation
   const deleteSectionMutation = useMutation({
-    mutationFn: (id: string) => del(`/sections/${id}`),
+    mutationFn: (id: string) => api.del(`/sections/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["sections"] });
+      doAction("spiderBoxes.sectionDeleted");
     },
   });
-  const handleCreateSection = () => {
-    setIsCreateMode(true);
-    setSectionForm({
-      type: "section",
-      title: "",
-      description: "",
-      context: "default",
-      screen: "",
 
-      settings: {},
-      components: {},
-      is_active: true,
-    });
-    setIsDialogOpen(true);
+  const handleCreateSection = () => {
+    setEditingSection(null);
+    setIsFormOpen(true);
+    createSectionMutation.reset();
+    updateSectionMutation.reset();
   };
 
   const handleEditSection = (section: Section) => {
-    setIsCreateMode(false);
-    setSelectedSection(section);
-    setSectionForm(section);
-    setIsDialogOpen(true);
+    setEditingSection(section);
+    setIsFormOpen(true);
+    createSectionMutation.reset();
+    updateSectionMutation.reset();
   };
 
-  const handleSaveSection = () => {
-    if (isCreateMode) {
-      createSectionMutation.mutate(sectionForm);
-    } else if (selectedSection) {
-      updateSectionMutation.mutate({
-        id: selectedSection.id,
-        data: sectionForm,
-      });
-    }
+  const handleCloseForm = () => {
+    setIsFormOpen(false);
+    setEditingSection(null);
+    createSectionMutation.reset();
+    updateSectionMutation.reset();
   };
 
   const handleDeleteSection = (id: string) => {
@@ -123,31 +81,51 @@ export const SectionsManager: React.FC = () => {
       deleteSectionMutation.mutate(id);
     }
   };
-  const updateFormField = (field: string, value: any) => {
-    setSectionForm((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
+
+  const handleFormSubmit = (sectionData: Section) => {
+    console.log("Form submitted with data:", sectionData);
+
+    const requiredFields = ["type", "title"];
+    const missingFields = requiredFields.filter((field) => !sectionData[field as keyof Section]);
+
+    if (missingFields.length > 0) {
+      console.error(`Missing required fields: ${missingFields.join(", ")}`);
+      return;
+    }
+
+    const processedSection = applyFilters("spiderBoxes.sectionToSave", sectionData, editingSection) as Section;
+
+    if (editingSection && editingSection.id !== "new") {
+      console.log("Updating existing section:", editingSection.id);
+      updateSectionMutation.mutate({ ...processedSection, id: editingSection.id });
+    } else {
+      console.log("Creating new section");
+      createSectionMutation.mutate(processedSection);
+    }
   };
 
-  const updateFormSettings = (key: string, value: any) => {
-    setSectionForm((prev) => ({
-      ...prev,
-      settings: {
-        ...prev.settings,
-        [key]: value,
-      },
-    }));
+  const getErrorMessage = (error: any): string => {
+    if (!error) return "";
+    if (typeof error === "string") return error;
+    if (error.message) return error.message;
+    if (error.response?.data?.message) return error.response.data.message;
+    if (error.response?.statusText) return error.response.statusText;
+    return "An unexpected error occurred";
   };
 
-  const getSectionIcon = (type: string) => {
-    const icons: Record<string, string> = {
-      section: "📝",
-      form: "📋",
-    };
-    return icons[type] || "📄";
-  };
-  if (sectionsLoading || typesLoading) {
+  // Filter sections based on search term
+  const filteredSections = sections.filter(
+    (section: Section) =>
+      section.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      section.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      section.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      section.context.toLowerCase().includes(searchTerm.toLowerCase()),
+  );
+
+  // Apply filters for extensibility
+  const displaySections = applyFilters("spiderBoxes.sectionsTableData", filteredSections) as Section[];
+
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
@@ -156,236 +134,138 @@ export const SectionsManager: React.FC = () => {
   }
 
   return (
-    <div className="sections-manager">
-      <div className="sections-header">
-        <h3 className="text-lg font-semibold mb-4">Sections</h3>
-        <Button onClick={handleCreateSection}>Create Section</Button>
+    <div className="spider-boxes-sections-manager">
+      {/* Header */}
+
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-medium text-gray-900">Sections</h2>
+          <p className="text-sm text-gray-600">Manage sections that group fields and components together.</p>
+        </div>
+        <Button onClick={handleCreateSection} className="spider-boxes-button">
+          <PlusIcon className="w-4 h-4 mr-2" />
+          Add Section
+        </Button>
       </div>
 
-      <div className="sections-grid">
-        <AnimatePresence>
-          {sections.map((section: Section) => (
-            <motion.div
-              key={section.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.2 }}
-              className="section-card"
-            >
-              <div className="section-card-header">
-                <div className="section-icon">{getSectionIcon(section.type)}</div>
-                <div className="section-info">
-                  <h4 className="section-title">{section.title}</h4>
-                  <p className="section-type">{section.type}</p>
-                  {section.description && <p className="section-description">{section.description}</p>}
-                </div>
-              </div>{" "}
-              <div className="section-meta">
-                <span className="section-context">Context: {section.context}</span>
+      {displaySections.length === 0 ? (
+        <div className="text-center py-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+          <p className="text-gray-500 mb-4">No components created yet.</p>
+          <Button onClick={handleCreateSection} className="spider-boxes-create-button">
+            <PlusIcon className="w-4 h-4 mr-2" />
+            Create your first section
+          </Button>
+        </div>
+      ) : (
+        <div className="spider-boxes-table-container">
+          {/* Search */}
+          <div className="spider-boxes-search-container">
+            <div className="spider-boxes-search-wrapper">
+              <SearchIcon className="spider-boxes-search-icon" />
+              <input
+                type="text"
+                placeholder="Search sections..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="spider-boxes-search-input"
+              />
+            </div>
+          </div>
+          <div className="spider-boxes-table">
+            <div className="spider-boxes-table-header">
+              <div className="spider-boxes-table-cell spider-boxes-table-header-cell">Section</div>
+              <div className="spider-boxes-table-cell spider-boxes-table-header-cell">Type</div>
+              <div className="spider-boxes-table-cell spider-boxes-table-header-cell">Description</div>
+              <div className="spider-boxes-table-cell spider-boxes-table-header-cell">Context</div>
+              <div className="spider-boxes-table-cell spider-boxes-table-header-cell">Components</div>
+              <div className="spider-boxes-table-cell spider-boxes-table-header-cell">Status</div>
+              <div className="spider-boxes-table-cell spider-boxes-table-header-cell">Actions</div>
+            </div>
 
-                <span className="section-component-count">{Object.keys(section.components || {}).length} components</span>
-              </div>
-              <div className="section-actions">
-                <Button variant="outline" size="sm" onClick={() => handleEditSection(section)}>
-                  Edit
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => handleDeleteSection(section.id)}>
-                  Delete
-                </Button>
-              </div>
-            </motion.div>
-          ))}
-        </AnimatePresence>
-      </div>
+            <div className="spider-boxes-table-body">
+              {displaySections.map((section: Section) => (
+                <motion.div key={section.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="spider-boxes-table-row">
+                  <div className="spider-boxes-table-cell">
+                    <div className="flex items-center space-x-3">
+                      <div className="spider-boxes-section-icon">{section.type === "form" ? "📋" : "📄"}</div>
+                      <div>
+                        <div className="font-medium text-gray-900">{section.title}</div>
+                        <div className="text-sm text-gray-500">ID: {section.id}</div>
+                      </div>
+                    </div>
+                  </div>
 
-      {sections.length === 0 && (
-        <div className="empty-state">
-          <div className="empty-state-icon">📄</div>
-          <h3 className="empty-state-title">No sections yet</h3>
-          <p className="empty-state-description">Create your first section to get started.</p>
-          <Button onClick={handleCreateSection}>Create Section</Button>
+                  <div className="spider-boxes-table-cell">
+                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 capitalize">
+                      {section.type}
+                    </span>
+                  </div>
+
+                  <div className="spider-boxes-table-cell">
+                    <div className="text-sm text-gray-900 max-w-xs truncate">{section.description || "—"}</div>
+                  </div>
+
+                  <div className="spider-boxes-table-cell">
+                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                      {section.context}
+                    </span>
+                    {section.screen && <div className="text-xs text-gray-500 mt-1">Screen: {section.screen}</div>}
+                  </div>
+
+                  <div className="spider-boxes-table-cell">
+                    <div className="text-sm text-gray-900">{Object.keys(section.components || {}).length} components</div>
+                  </div>
+
+                  <div className="spider-boxes-table-cell">
+                    <span
+                      className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                        section.is_active ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+                      }`}
+                    >
+                      {section.is_active ? "Active" : "Inactive"}
+                    </span>
+                  </div>
+
+                  <div className="spider-boxes-table-cell">
+                    <div className="flex items-center space-x-2">
+                      <Button variant="outline" size="sm" onClick={() => handleEditSection(section)} className="spider-boxes-edit-button">
+                        <PencilIcon className="spider-boxes-icon" />
+                        Edit
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDeleteSection(section.id)}
+                        className="spider-boxes-delete-button"
+                      >
+                        <TrashIcon className="spider-boxes-icon" />
+                        Delete
+                      </Button>
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </div>
         </div>
       )}
 
       {/* Section Form Dialog */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent size="lg">
+      <Dialog open={isFormOpen} onOpenChange={handleCloseForm}>
+        <DialogContent size="lg" className="spider-boxes-dialog">
           <DialogHeader>
-            <DialogTitle>{isCreateMode ? "Create Section" : "Edit Section"}</DialogTitle>
+            <DialogTitle>{editingSection ? "Edit Section" : "Create Section"}</DialogTitle>
           </DialogHeader>
 
-          <div className="section-form">
-            <div className="form-grid">
-              <FieldRenderer
-                config={{
-                  id: "title",
-                  type: "text",
-                  label: "Section Title",
-                  required: true,
-                  placeholder: "Enter section title",
-                }}
-                value={sectionForm.title || ""}
-                onChange={(value) => updateFormField("title", value)}
-              />
-
-              <FieldRenderer
-                config={{
-                  id: "type",
-                  type: "select",
-                  label: "Section Type",
-                  required: true,
-                  options: sectionTypes.map((type: SectionType) => ({
-                    label: type.name,
-                    value: type.id,
-                  })),
-                }}
-                value={sectionForm.type || ""}
-                onChange={(value) => updateFormField("type", value)}
-              />
-
-              <FieldRenderer
-                config={{
-                  id: "description",
-                  type: "textarea",
-                  label: "Description",
-                  placeholder: "Enter section description",
-                  rows: 3,
-                }}
-                value={sectionForm.description || ""}
-                onChange={(value) => updateFormField("description", value)}
-              />
-
-              <FieldRenderer
-                config={{
-                  id: "context",
-                  type: "select",
-                  label: "Context",
-                  required: true,
-                  options: [
-                    { label: "Default", value: "default" },
-                    { label: "Post Edit", value: "post_edit" },
-                    { label: "User Profile", value: "user_profile" },
-                    { label: "Settings", value: "settings" },
-                    { label: "WooCommerce Product", value: "wc_product" },
-                  ],
-                }}
-                value={sectionForm.context || "default"}
-                onChange={(value) => updateFormField("context", value)}
-              />
-
-              <FieldRenderer
-                config={{
-                  id: "screen",
-                  type: "text",
-                  label: "Screen (Optional)",
-                  placeholder: "e.g., post, page, product",
-                  description: "Limit section to specific admin screens",
-                }}
-                value={sectionForm.screen || ""}
-                onChange={(value) => updateFormField("screen", value)}
-              />
-            </div>
-
-            {/* Section Type Specific Configuration */}
-            {sectionForm.type && (
-              <div className="section-config">
-                <h4 className="config-title">Section Configuration</h4>{" "}
-                {sectionForm.type === "section" && (
-                  <div className="config-grid">
-                    <FieldRenderer
-                      config={{
-                        id: "collapsible",
-                        type: "switcher",
-                        label: "Collapsible",
-                        description: "Allow users to collapse this section",
-                      }}
-                      value={sectionForm.settings?.collapsible || false}
-                      onChange={(value) => updateFormSettings("collapsible", value)}
-                    />
-                    <FieldRenderer
-                      config={{
-                        id: "collapsed",
-                        type: "switcher",
-                        label: "Start Collapsed",
-                        description: "Start with the section collapsed",
-                      }}
-                      value={sectionForm.settings?.collapsed || false}
-                      onChange={(value) => updateFormSettings("collapsed", value)}
-                    />
-                  </div>
-                )}
-                {sectionForm.type === "form" && (
-                  <div className="config-grid">
-                    <FieldRenderer
-                      config={{
-                        id: "method",
-                        type: "select",
-                        label: "Form Method",
-                        options: [
-                          { label: "POST", value: "post" },
-                          { label: "GET", value: "get" },
-                        ],
-                      }}
-                      value={sectionForm.settings?.method || "post"}
-                      onChange={(value) => updateFormSettings("method", value)}
-                    />
-                    <FieldRenderer
-                      config={{
-                        id: "action",
-                        type: "text",
-                        label: "Form Action URL",
-                        placeholder: "Leave empty for current page",
-                      }}
-                      value={sectionForm.settings?.action || ""}
-                      onChange={(value) => updateFormSettings("action", value)}
-                    />
-                    <FieldRenderer
-                      config={{
-                        id: "ajax",
-                        type: "switcher",
-                        label: "AJAX Submission",
-                        description: "Submit form via AJAX",
-                      }}
-                      value={sectionForm.settings?.ajax || false}
-                      onChange={(value) => updateFormSettings("ajax", value)}
-                    />
-                    <FieldRenderer
-                      config={{
-                        id: "submit_text",
-                        type: "text",
-                        label: "Submit Button Text",
-                        placeholder: "Submit",
-                      }}
-                      value={sectionForm.settings?.submit_text || "Submit"}
-                      onChange={(value) => updateFormSettings("submit_text", value)}
-                    />
-                    <FieldRenderer
-                      config={{
-                        id: "nonce_action",
-                        type: "text",
-                        label: "Nonce Action",
-                        placeholder: "Enter nonce action for security",
-                      }}
-                      value={sectionForm.settings?.nonce_action || ""}
-                      onChange={(value) => updateFormSettings("nonce_action", value)}
-                    />
-                  </div>
-                )}
-              </div>
-            )}
-
-            <div className="form-actions">
-              <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
-                Cancel
-              </Button>{" "}
-              <Button onClick={handleSaveSection} disabled={createSectionMutation.isPending || updateSectionMutation.isPending}>
-                {isCreateMode ? "Create Section" : "Save Changes"}
-              </Button>
-            </div>
-          </div>
+          <SectionForm
+            section={editingSection || undefined}
+            onSave={handleFormSubmit}
+            onCancel={handleCloseForm}
+            error={getErrorMessage(createSectionMutation.error || updateSectionMutation.error)}
+            isLoading={createSectionMutation.isPending || updateSectionMutation.isPending}
+          />
         </DialogContent>
       </Dialog>
     </div>
   );
-};
+}

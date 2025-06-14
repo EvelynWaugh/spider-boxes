@@ -1,10 +1,5 @@
-import React, {Fragment} from "react";
-import {
-  SpiderBoxesHooks,
-  SPIDER_BOXES_HOOKS,
-  useComponentLifecycle,
-  useFilteredContent,
-} from "../hooks/useSpiderBoxesHooks";
+import React, { Fragment } from "react";
+import { SpiderBoxesHooks, SPIDER_BOXES_HOOKS, useComponentLifecycle, useFilteredContent } from "../hooks/useSpiderBoxesHooks";
 
 interface FieldComponentProps {
   field: {
@@ -13,7 +8,7 @@ interface FieldComponentProps {
     title: string;
     description?: string;
     value?: any;
-    options?: Record<string, any>;
+    options?: Record<string, string>;
   };
   onChange?: (value: any) => void;
 }
@@ -21,19 +16,13 @@ interface FieldComponentProps {
 /**
  * Example field component using WordPress hooks
  */
-const FieldComponent: React.FC<FieldComponentProps> = ({field, onChange}) => {
+const FieldComponent: React.FC<FieldComponentProps> = ({ field, onChange }) => {
   // Use component lifecycle hooks
   useComponentLifecycle(`field-${field.id}`);
 
   // Apply filters to field title and description
-  const filteredTitle = useFilteredContent(
-    SPIDER_BOXES_HOOKS.FILTER_CONTENT,
-    field.title
-  );
-  const filteredDescription = useFilteredContent(
-    SPIDER_BOXES_HOOKS.FILTER_CONTENT,
-    field.description || ""
-  );
+  const filteredTitle = useFilteredContent(SPIDER_BOXES_HOOKS.FILTER_CONTENT, field.title);
+  const filteredDescription = useFilteredContent(SPIDER_BOXES_HOOKS.FILTER_CONTENT, field.description || "");
 
   const handleValueChange = (newValue: any) => {
     // Trigger action before value change
@@ -44,11 +33,7 @@ const FieldComponent: React.FC<FieldComponentProps> = ({field, onChange}) => {
     });
 
     // Apply filters to the new value
-    const filteredValue = SpiderBoxesHooks.applyFilters(
-      `spider_boxes_field_value_${field.type}`,
-      newValue,
-      field
-    );
+    const filteredValue = SpiderBoxesHooks.applyFilters(`spider_boxes_field_value_${field.type}`, newValue, field);
 
     onChange?.(filteredValue);
   };
@@ -84,9 +69,9 @@ const FieldComponent: React.FC<FieldComponentProps> = ({field, onChange}) => {
           >
             <option value="">Select an option</option>
             {field.options &&
-              Object.entries(field.options).map(([key, option]) => (
+              Object.entries(field.options).map(([key, optionLabel]) => (
                 <option key={key} value={key}>
-                  {typeof option === "object" ? option.label : option}
+                  {optionLabel}
                 </option>
               ))}
           </select>
@@ -109,29 +94,17 @@ const FieldComponent: React.FC<FieldComponentProps> = ({field, onChange}) => {
 
   return (
     <Fragment>
-      {SpiderBoxesHooks.applyFilters(
-        SPIDER_BOXES_HOOKS.BEFORE_FIELD_RENDER,
-        null,
-        field
-      )}
+      {SpiderBoxesHooks.applyFilters(SPIDER_BOXES_HOOKS.BEFORE_FIELD_RENDER, null, field)}
 
       <div className="field-component mb-4">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          {filteredTitle}
-        </label>
+        <label className="block text-sm font-medium text-gray-700 mb-2">{filteredTitle}</label>
 
         {renderField()}
 
-        {filteredDescription && (
-          <p className="mt-1 text-sm text-gray-500">{filteredDescription}</p>
-        )}
+        {filteredDescription && <p className="mt-1 text-sm text-gray-500">{filteredDescription}</p>}
       </div>
 
-      {SpiderBoxesHooks.applyFilters(
-        SPIDER_BOXES_HOOKS.AFTER_FIELD_RENDER,
-        null,
-        field
-      )}
+      {SpiderBoxesHooks.applyFilters(SPIDER_BOXES_HOOKS.AFTER_FIELD_RENDER, null, field)}
     </Fragment>
   );
 };
