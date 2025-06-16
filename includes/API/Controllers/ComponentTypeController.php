@@ -284,7 +284,7 @@ class ComponentTypeController extends BaseController {
 		}
 
 		// Get component type from registry and database.
-		$component_registry       = spider_boxes()->get_container()->get( ComponentRegistry::class );
+		$component_registry       = spider_boxes()->get_container()->get( 'componentRegistry' );
 		$registry_component_types = $component_registry->get_component_types();
 		$db_component_types       = DatabaseManager::get_component_types();
 
@@ -309,8 +309,8 @@ class ComponentTypeController extends BaseController {
 			return new WP_Error( 'component_type_not_found', __( 'Component type not found', 'spider-boxes' ), array( 'status' => 404 ) );
 		}
 
-		// Generate dynamic configuration fields based on supports.
-		$config_fields = $this->generate_component_config_fields( $component_type_config );
+		$config_generator = spider_boxes()->get_container()->get( 'fieldConfigGenerator' );
+		$config_fields    = $config_generator->generate_config_fields( $component_type_config );
 
 		return rest_ensure_response(
 			array(

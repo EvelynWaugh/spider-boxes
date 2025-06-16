@@ -292,8 +292,8 @@ class FieldTypeController extends BaseController {
 		$config_fields    = $config_generator->generate_config_fields( $field_type_config );
 
 		$response = array(
-			'type'   => $field_type_config,
-			'fields' => $config_fields,
+			'type'          => $field_type_config,
+			'config_fields' => $config_fields,
 		);
 
 		return rest_ensure_response(

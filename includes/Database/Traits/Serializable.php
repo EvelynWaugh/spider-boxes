@@ -24,10 +24,6 @@ trait Serializable {
 			if ( isset( $this->attributes[ $field ] ) ) {
 				$this->attributes[ $field ] = maybe_unserialize( $this->attributes[ $field ] );
 
-				// Ensure arrays are arrays
-				if ( ! is_array( $this->attributes[ $field ] ) ) {
-					$this->attributes[ $field ] = array();
-				}
 			}
 		}
 

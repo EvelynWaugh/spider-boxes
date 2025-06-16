@@ -76,128 +76,14 @@ class ComponentController extends BaseController {
 		);
 	}
 
-		/**
-		 * Generate configuration fields based on component type supports
-		 *
-		 * @param array $component_type_config Component type configuration.
-		 * @return array
-		 */
-	private function generate_component_config_fields( $component_type_config ) {
-		$supports      = $component_type_config['supports'] ?? array();
-		$config_fields = array();
 
-		// Basic fields
-		$config_fields['title'] = array(
-			'type'        => 'text',
-			'label'       => __( 'Title', 'spider-boxes' ),
-			'description' => __( 'Component title', 'spider-boxes' ),
-			'required'    => true,
-		);
 
-		$config_fields['description'] = array(
-			'type'        => 'textarea',
-			'label'       => __( 'Description', 'spider-boxes' ),
-			'description' => __( 'Component description', 'spider-boxes' ),
-		);
-
-		// Add fields based on what the component type supports
-		foreach ( $supports as $support ) {
-			switch ( $support ) {
-				case 'icon':
-					$config_fields['icon'] = array(
-						'type'        => 'text',
-						'label'       => __( 'Icon', 'spider-boxes' ),
-						'description' => __( 'Component icon class or name', 'spider-boxes' ),
-					);
-					break;
-
-				case 'class':
-					$config_fields['class'] = array(
-						'type'        => 'text',
-						'label'       => __( 'CSS Class', 'spider-boxes' ),
-						'description' => __( 'Additional CSS classes', 'spider-boxes' ),
-					);
-					break;
-
-				case 'collapsed':
-					$config_fields['collapsed'] = array(
-						'type'        => 'switcher',
-						'label'       => __( 'Collapsed', 'spider-boxes' ),
-						'description' => __( 'Whether the component should be collapsed by default', 'spider-boxes' ),
-					);
-					break;
-
-				case 'active':
-					$config_fields['active'] = array(
-						'type'        => 'switcher',
-						'label'       => __( 'Active', 'spider-boxes' ),
-						'description' => __( 'Whether the component should be active by default', 'spider-boxes' ),
-					);
-					break;
-
-				case 'width':
-					$config_fields['width'] = array(
-						'type'        => 'select',
-						'label'       => __( 'Width', 'spider-boxes' ),
-						'description' => __( 'Component width', 'spider-boxes' ),
-						'options'     => array(
-							'auto' => __( 'Auto', 'spider-boxes' ),
-							'25%'  => __( '25%', 'spider-boxes' ),
-							'50%'  => __( '50%', 'spider-boxes' ),
-							'75%'  => __( '75%', 'spider-boxes' ),
-							'100%' => __( '100%', 'spider-boxes' ),
-						),
-					);
-					break;
-
-				case 'columns':
-					$config_fields['columns'] = array(
-						'type'        => 'range',
-						'label'       => __( 'Columns', 'spider-boxes' ),
-						'description' => __( 'Number of columns', 'spider-boxes' ),
-						'min'         => 1,
-						'max'         => 12,
-						'step'        => 1,
-					);
-					break;
-
-				case 'gap':
-					$config_fields['gap'] = array(
-						'type'        => 'select',
-						'label'       => __( 'Gap', 'spider-boxes' ),
-						'description' => __( 'Space between items', 'spider-boxes' ),
-						'options'     => array(
-							'none'   => __( 'None', 'spider-boxes' ),
-							'small'  => __( 'Small', 'spider-boxes' ),
-							'medium' => __( 'Medium', 'spider-boxes' ),
-							'large'  => __( 'Large', 'spider-boxes' ),
-						),
-					);
-					break;
-
-				case 'align':
-					$config_fields['align'] = array(
-						'type'        => 'select',
-						'label'       => __( 'Alignment', 'spider-boxes' ),
-						'description' => __( 'Content alignment', 'spider-boxes' ),
-						'options'     => array(
-							'left'   => __( 'Left', 'spider-boxes' ),
-							'center' => __( 'Center', 'spider-boxes' ),
-							'right'  => __( 'Right', 'spider-boxes' ),
-						),
-					);
-					break;
-			}
-		}
-		return apply_filters( 'spider_boxes_component_config_fields', $config_fields, $component_type_config );
-	}
-
-		/**
-		 * Get components
-		 *
-		 * @param WP_REST_Request $request Request object.
-		 * @return WP_REST_Response
-		 */
+	/**
+	 * Get components
+	 *
+	 * @param WP_REST_Request $request Request object.
+	 * @return WP_REST_Response
+	 */
 	public function get_components( $request ) {
 		$context    = $request->get_param( 'context' );
 		$components = DatabaseManager::get_all_components( $context );
@@ -205,12 +91,12 @@ class ComponentController extends BaseController {
 		return rest_ensure_response( $components );
 	}
 
-		/**
-		 * Get single component
-		 *
-		 * @param WP_REST_Request $request Request object.
-		 * @return WP_REST_Response|WP_Error
-		 */
+	/**
+	 * Get single component
+	 *
+	 * @param WP_REST_Request $request Request object.
+	 * @return WP_REST_Response|WP_Error
+	 */
 	public function get_component( $request ) {
 		$id = $request->get_param( 'id' );
 

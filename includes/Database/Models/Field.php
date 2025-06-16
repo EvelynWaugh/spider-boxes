@@ -77,7 +77,6 @@ class Field implements ModelInterface {
 	 */
 	protected $serializable = array(
 		'value',
-		'options',
 		'settings',
 		'supports',
 		'fields',
@@ -161,6 +160,17 @@ class Field implements ModelInterface {
 	public function __construct( array $attributes = array() ) {
 		$this->fill( $attributes );
 		$this->sync_original();
+	}
+
+
+	/**
+	 * Get database columns from repository
+	 *
+	 * @return array
+	 */
+	protected function get_database_columns() {
+		$repository = spider_boxes()->get_container()->get( 'fieldRepository' );
+		return $repository->get_database_columns();
 	}
 
 	/**
@@ -256,7 +266,14 @@ class Field implements ModelInterface {
 	 * @return mixed
 	 */
 	public function get_attribute( $key, $default = null ) {
-		$value = $this->attributes[ $key ] ?? $default;
+		// Check if it's in attributes first
+		if ( isset( $this->attributes[ $key ] ) ) {
+			$value = $this->attributes[ $key ];
+		} else {
+			// Check if it might be in settings
+			$settings = $this->attributes['settings'] ?? array();
+			$value    = $settings[ $key ] ?? $default;
+		}
 
 		return apply_filters( "spider_boxes_field_get_{$key}", $value, $this );
 	}
@@ -336,7 +353,8 @@ class Field implements ModelInterface {
 	 * @return array
 	 */
 	public function to_database() {
-		$data = $this->to_array();
+		$repository = spider_boxes()->get_container()->get( 'fieldRepository' );
+		$data       = $this->to_array();
 
 		// Serialize array fields
 		foreach ( $this->serializable as $field ) {
@@ -427,6 +445,130 @@ class Field implements ModelInterface {
 		$html = $field_instance->render( $render_context );
 
 		return apply_filters( 'spider_boxes_field_render', $html, $value, $context, $this );
+	}
+
+
+	/**
+	 * Save the model to database
+	 *
+	 * @return bool
+	 */
+	public function save() {
+		if ( ! $this->is_valid() ) {
+			return false;
+		}
+
+		$repository = spider_boxes()->get_container()->get( 'fieldRepository' );
+
+		if ( $this->get_attribute( 'id' ) ) {
+			// Update existing field
+			return $repository->update_from_model( $this );
+		} else {
+			// Create new field
+			$id = $repository->create_from_model( $this );
+			if ( $id !== false ) {
+				$this->set_attribute( 'id', $id );
+				$this->sync_original();
+				return true;
+			}
+			return false;
+		}
+	}
+
+
+	/**
+	 * Delete the model from database
+	 *
+	 * @return bool
+	 */
+	public function delete() {
+		if ( ! $this->get_attribute( 'id' ) ) {
+			return false;
+		}
+
+		$repository = spider_boxes()->get_container()->get( 'fieldRepository' );
+		$result     = $repository->delete( $this->get_attribute( 'id' ) );
+
+		if ( $result ) {
+			// Clear the ID after successful deletion
+			$this->set_attribute( 'id', null );
+		}
+
+		return $result;
+	}
+
+	/**
+	 * Refresh model from database
+	 *
+	 * @return bool
+	 */
+	public function refresh() {
+		$id = $this->get_attribute( 'id' );
+
+		if ( ! $id ) {
+			return false;
+		}
+
+		$repository = spider_boxes()->get_container()->get( 'fieldRepository' );
+		$fresh_data = $repository->find( $id );
+
+		if ( $fresh_data ) {
+			$this->attributes = array();
+			$this->fill( $fresh_data );
+			$this->sync_original();
+			return true;
+		}
+
+		return false;
+	}
+
+	/**
+	 * Create and save in one call
+	 *
+	 * @param array $attributes Field attributes.
+	 * @return static|null
+	 */
+	public static function create_and_save( array $attributes = array() ) {
+		$field = static::create( $attributes );
+
+		if ( $field->save() ) {
+			return $field;
+		}
+
+		return null;
+	}
+
+	/**
+	 * Get all fields (static method)
+	 *
+	 * @param array $criteria Query criteria.
+	 * @return \Illuminate\Support\Collection
+	 */
+	public static function all( array $criteria = array() ) {
+		$repository = spider_boxes()->get_container()->get( 'fieldRepository' );
+		return $repository->all_as_models( $criteria );
+	}
+
+	/**
+	 * Find field by ID (static method)
+	 *
+	 * @param int|string $id Field ID.
+	 * @return static|null
+	 */
+	public static function find( $id ) {
+		$repository = spider_boxes()->get_container()->get( 'fieldRepository' );
+		return $repository->find_as_model( $id );
+	}
+
+	/**
+	 * Search fields (static method)
+	 *
+	 * @param string $search Search term.
+	 * @return \Illuminate\Support\Collection
+	 */
+	public static function search( $search ) {
+		$repository = spider_boxes()->get_container()->get( 'fieldRepository' );
+		return $repository->search_as_models( $search );
 	}
 
 	/**

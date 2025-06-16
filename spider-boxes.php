@@ -46,36 +46,56 @@ if ( ! file_exists( $autoloader ) ) {
 
 require_once $autoloader;
 
-// Include the main plugin class
-require_once SPIDER_BOXES_PLUGIN_DIR . 'includes/class-spider-boxes.php';
 
-/**
- * The main function to load the plugin
- */
-function spider_boxes() {
-	return SpiderBoxes\SpiderBoxes::get_instance();
+// Load Composer autoloader
+if ( file_exists( SPIDER_BOXES_PLUGIN_DIR . 'vendor/autoload.php' ) ) {
+	require_once SPIDER_BOXES_PLUGIN_DIR . 'vendor/autoload.php';
+} else {
+	add_action(
+		'admin_notices',
+		function () {
+			echo '<div class="notice notice-error"><p>';
+			echo esc_html__( 'Spider Boxes: Composer dependencies not found. Please run "composer install".', 'spider-boxes' );
+			echo '</p></div>';
+		}
+	);
+	return;
 }
 
-// Initialize the plugin
-spider_boxes();
-
-/**
- * Plugin activation hook
- */
-register_activation_hook(
-	__FILE__,
+// Initialize plugin
+add_action(
+	'plugins_loaded',
 	function () {
-		do_action( 'spider_boxes_activation' );
+		try {
+			// Initialize the main plugin class
+			SpiderBoxes\Plugin::get_instance();
+		} catch ( Exception $e ) {
+			add_action(
+				'admin_notices',
+				function () use ( $e ) {
+					echo '<div class="notice notice-error"><p>';
+					echo esc_html( sprintf( __( 'Spider Boxes initialization failed: %s', 'spider-boxes' ), $e->getMessage() ) );
+					echo '</p></div>';
+				}
+			);
+		}
 	}
 );
 
-/**
- * Plugin deactivation hook
- */
+
+// Activation hook
+register_activation_hook(
+	__FILE__,
+	function () {
+		SpiderBoxes\Installer::activate();
+	}
+);
+
+// Deactivation hook
 register_deactivation_hook(
 	__FILE__,
 	function () {
-		do_action( 'spider_boxes_deactivation' );
+		SpiderBoxes\Installer::deactivate();
 	}
 );
 

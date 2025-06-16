@@ -22,12 +22,12 @@ use SpiderBoxes\Database\DatabaseManager;
 /**
  * Main plugin class
  */
-class SpiderBoxes {
+class Plugin {
 
 	/**
 	 * Single instance of the class
 	 *
-	 * @var SpiderBoxes|null
+	 * @var Plugin|null
 	 */
 	private static $instance = null;
 
@@ -41,7 +41,7 @@ class SpiderBoxes {
 	/**
 	 * Get single instance
 	 *
-	 * @return SpiderBoxes
+	 * @return Plugin
 	 */
 	public static function get_instance() {
 		if ( null === self::$instance ) {
@@ -122,15 +122,15 @@ class SpiderBoxes {
 
 			// Initialize core registries
 			$this->container->get( FieldRegistry::class );
-			$this->container->get( ComponentRegistry::class );
-			$this->container->get( SectionRegistry::class );
+			// $this->container->get( ComponentRegistry::class );
+			// $this->container->get( SectionRegistry::class );
 
 			// Initialize admin pages
 			$this->container->get( AdminPages::class );
 
 			// Initialize WooCommerce integration if WooCommerce is active
 			if ( class_exists( 'WooCommerce' ) ) {
-				$this->container->get( ReviewsManager::class );
+				// $this->container->get( ReviewsManager::class );
 			}
 		} catch ( \Exception $e ) {
 			error_log( 'Spider Boxes initialization error: ' . $e->getMessage() );

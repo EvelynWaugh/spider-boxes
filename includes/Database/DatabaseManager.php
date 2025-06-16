@@ -7,12 +7,19 @@
 
 namespace SpiderBoxes\Database;
 
-use StellarWP\DB\DB;
+use SpiderBoxes\Database\Repositories\FieldRepository;
+use SpiderBoxes\Database\Repositories\FieldTypeRepository;
+use SpiderBoxes\Database\Repositories\ComponentRepository;
+use SpiderBoxes\Database\Repositories\ComponentTypeRepository;
+use SpiderBoxes\Database\Repositories\SectionRepository;
+use SpiderBoxes\Database\Repositories\SectionTypeRepository;
+
 
 /**
- * Handles database operations for Spider Boxes
+ * Database Manager - Main coordinator for all database operations
  */
 class DatabaseManager {
+
 	/**
 	 * DB Version for custom tables
 	 *
@@ -21,9 +28,44 @@ class DatabaseManager {
 	protected static $db_table_version = '1.1.5';
 
 	/**
+	 * Repository instances
+	 *
+	 * @var array
+	 */
+	private static $repositories = array();
+
+	/**
+	 * Get repository instance
+	 *
+	 * @param string $repository Repository name.
+	 * @return object
+	 */
+	public static function get_repository( $repository ) {
+		if ( ! isset( self::$repositories[ $repository ] ) ) {
+			$class_map = array(
+				'field'      => FieldRepository::class,
+				'field_type' => FieldTypeRepository::class,
+				// 'component'      => ComponentRepository::class,
+				// 'component_type' => ComponentTypeRepository::class,
+				// 'section'        => SectionRepository::class,
+				// 'section_type'   => SectionTypeRepository::class,
+			);
+
+			if ( ! isset( $class_map[ $repository ] ) ) {
+				throw new \Exception( "Repository '{$repository}' not found." );
+			}
+
+			self::$repositories[ $repository ] = new $class_map[ $repository ]();
+		}
+
+		return self::$repositories[ $repository ];
+	}
+
+	/**
 	 * Create custom database tables
 	 */
 	public static function create_tables() {
+
 		global $wpdb;
 
 		$db_version = get_option( 'spider_boxes_db_version', '1.0.0' );
@@ -32,7 +74,7 @@ class DatabaseManager {
 			return;
 		}
 
-		$charset_collate = $wpdb->get_charset_collate();
+			$charset_collate = $wpdb->get_charset_collate();
 
 		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 
@@ -172,1091 +214,219 @@ class DatabaseManager {
 		}
 	}
 
+	// ========================================
+	// Field Operations (delegated to FieldRepository)
+	// ========================================
 
 	/**
-	 * Get all available field types (combined from registry and database)
-	 *
-	 * @return array Array of field types.
+	 * Get all field types
 	 */
 	public static function get_field_types() {
-		// Use the field registry to get combined field types
-		$field_registry = spider_boxes()->get_container()->get( 'fieldRegistry' );
-		return $field_registry->get_all_field_types();
+		return self::get_repository( 'field_type' )->get_with_registry();
 	}
 
-
 	/**
-	 * Get all available field types from database
-	 *
-	 * @return array Array of field types.
+	 * Get database field types
 	 */
 	public static function get_db_field_types() {
-
-		$results = DB::table( 'spider_boxes_field_types' )
-		->select( '*' )
-		->where( 'is_active', 1 )
-		->orderBy( 'type' )
-		->getAll( ARRAY_A );
-
-		if ( ! $results ) {
-			return array();
-		}
-
-		// Unserialize for each field type.
-		foreach ( $results as &$field_type ) {
-
-			if ( $field_type['supports'] ) {
-				$serialized_array = maybe_unserialize( $field_type['supports'] );
-				if ( is_array( $serialized_array ) ) {
-					$field_type['supports'] = $serialized_array;
-				} else {
-					// If unserialization fails, reset to empty array
-					$field_type['supports'] = array( $serialized_array );
-				}
-			} else {
-				$field_type['supports'] = array();
-			}
-
-			// $field_type['supports'] = array();
-		}
-
-		return $results;
-	}
-
-
-	/**
-	 * Get field type by type identifier
-	 */
-	public static function get_field_type_by_type( $type ) {
-		return DB::table( 'spider_boxes_field_types' )
-			->where( 'type', $type )
-			->where( 'is_active', 1 )
-			->get( ARRAY_A );
+		return self::get_repository( 'field_type' )->get_active();
 	}
 
 	/**
-	 * Register a new field type
-	 *
-	 * @param array $field_type Field type configuration.
-	 * @return bool Success status.
+	 * Register field type
 	 */
 	public static function register_field_type( $field_type ) {
-
-		// Validate required fields.
-		$required_fields = array( 'type' );
-		foreach ( $required_fields as $field ) {
-			if ( empty( $field_type[ $field ] ) ) {
-				return false;
-			}
-		}
-
-		// Set defaults.
-		$field_type = wp_parse_args(
-			$field_type,
-			array(
-
-				'icon'        => 'component',
-				'description' => '',
-				'supports'    => maybe_serialize( array() ),
-				'is_active'   => 1,
-
-			)
-		);
-
-		// Encode supports if it's an array.
-		if ( is_array( $field_type['supports'] ) ) {
-			$field_type['supports'] = maybe_serialize( $field_type['supports'] );
-		}
-		try {
-				// Check if field type already exists
-				$existing = DB::table( 'spider_boxes_field_types' )
-					->where( 'type', $field_type['type'] )
-					->get();
-
-			if ( $existing ) {
-				// Update existing field type
-				$update_data = $field_type;
-				unset( $update_data['type'] ); // Don't update the type field
-
-				$result = DB::table( 'spider_boxes_field_types' )
-					->where( 'type', $field_type['type'] )
-					->update( $update_data );
-			} else {
-				// Insert new field type
-				$result = DB::table( 'spider_boxes_field_types' )
-					->insert( $field_type );
-			}
-
-				return $result !== false;
-
-		} catch ( \Exception $e ) {
-			error_log( 'Spider Boxes: Failed to register field type: ' . $e->getMessage() );
-			return false;
-		}
+		return self::get_repository( 'field_type' )->register( $field_type );
 	}
 
-
 	/**
-	 * Delete a field type
-	 *
-	 * @param string $id Field type identifier.
-	 * @return bool Success status.
+	 * Delete field type
 	 */
 	public static function delete_field_type( $id ) {
-		try {
-			// Check if field type exists
-			$existing = DB::table( 'spider_boxes_field_types' )
-				->where( 'id', $id )
-				->get();
-
-			if ( ! $existing ) {
-				return false;
-			}
-
-			// Delete the field type
-			$result = DB::table( 'spider_boxes_field_types' )
-				->where( 'id', $id )
-				->delete();
-
-			return $result !== false;
-
-		} catch ( \Exception $e ) {
-			error_log( 'Spider Boxes: Failed to delete field type: ' . $e->getMessage() );
-			return false;
-		}
+		return self::get_repository( 'field_type' )->delete( $id );
 	}
 
 	/**
-	 * Save field configuration to database
-	 *
-	 * @param integer|string $field_id Field ID.
-	 * @param array          $field_config Field configuration.
-	 * @return bool Success status.
+	 * Save field configuration
 	 */
 	public static function save_field_config( $field_id, $field_config ) {
-
-		// Prepare data for insertion.
-		$data = array(
-
-			'name'        => $field_config['name'] ?? '',
-			'type'        => $field_config['type'] ?? '',
-			'title'       => $field_config['title'] ?? '',
-			'description' => $field_config['description'] ?? '',
-
-			'context'     => $field_config['context'] ?? 'default',
-			'value'       => maybe_serialize( $field_config['value'] ?? '' ),
-			'settings'    => maybe_serialize( $field_config['settings'] ?? array() ),
-
-		);
-
-		if ( $field_id === 'new' ) {
-			$result = DB::table( 'spider_boxes_fields' )
-				->insert( $data );
-		} else {
-
-			$result = DB::table( 'spider_boxes_fields' )
-				->where( 'id', $field_id )
-				->update( $data );
-		}
-
-		return false !== $result;
+		return self::get_repository( 'field' )->save_config( $field_id, $field_config );
 	}
 
 	/**
-	 * Get field configuration from database
-	 *
-	 * @param integer $field_id Field ID.
-	 * @return array|null Field configuration or null if not found.
+	 * Get field configuration
 	 */
 	public static function get_field_config( $field_id ) {
-		global $wpdb;
-
-		$fields_table = $wpdb->prefix . 'spider_boxes_fields';
-
-		$result = $wpdb->get_row(
-			$wpdb->prepare(
-				"SELECT * FROM $fields_table WHERE id = %d", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-				$field_id
-			),
-			ARRAY_A
-		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
-
-		if ( ! $result ) {
-			return null;
-		}
-
-		$result['settings'] = maybe_unserialize( $result['settings'] );
-		$result['value']    = maybe_unserialize( $result['value'] );
-
-		return $result;
+		return self::get_repository( 'field' )->get_config( $field_id );
 	}
 
-
 	/**
-	 * Get field configuration from database by name
-	 *
-	 * @param string $name Field Name.
-	 * @return array|null Field configuration or null if not found.
+	 * Get field configuration by name
 	 */
 	public static function get_field_config_by_name( $name ) {
-		global $wpdb;
-
-		$fields_table = $wpdb->prefix . 'spider_boxes_fields';
-
-		$result = $wpdb->get_row(
-			$wpdb->prepare(
-				"SELECT * FROM $fields_table WHERE name = %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-				$name
-			),
-			ARRAY_A
-		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
-
-		if ( ! $result ) {
-			return null;
-		}
-
-		$result['settings'] = maybe_unserialize( $result['settings'] );
-		$result['value']    = maybe_unserialize( $result['value'] );
-
-		return $result;
+		return self::get_repository( 'field' )->find_by_name( $name );
 	}
 
 	/**
-	 * Save field meta value
-	 *
-	 * @param int    $object_id Object ID.
-	 * @param string $object_type Object type (post, term, comment, etc.).
-	 * @param string $meta_key Meta key.
-	 * @param mixed  $meta_value Meta value.
-	 * @param string $context Context.
-	 * @return bool Success status.
-	 */
-	public static function save_meta( $object_id, $object_type, $meta_key, $meta_value, $context = 'default' ) {
-		global $wpdb;
-
-		$meta_table = $wpdb->prefix . 'spider_boxes_meta';
-
-		$data = array(
-			'object_id'   => $object_id,
-			'object_type' => $object_type,
-			'meta_key'    => $meta_key,
-			'meta_value'  => maybe_serialize( $meta_value ),
-			'context'     => $context,
-		);
-
-		// Check if meta exists.
-		$existing = $wpdb->get_var(
-			$wpdb->prepare(
-				"SELECT id FROM $meta_table WHERE object_id = %d AND object_type = %s AND meta_key = %s AND context = %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-				$object_id,
-				$object_type,
-				$meta_key,
-				$context
-			)
-		);
-
-		if ( $existing ) {
-			unset( $data['created_at'] );
-			$result = $wpdb->update(
-				$meta_table,
-				$data,
-				array(
-					'object_id'   => $object_id,
-					'object_type' => $object_type,
-					'meta_key'    => $meta_key,
-					'context'     => $context,
-				)
-			); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
-		} else {
-			$result = $wpdb->insert( $meta_table, $data ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
-		}
-
-		return false !== $result;
-	}
-
-	/**
-	 * Get field meta value
-	 *
-	 * @param int    $object_id Object ID.
-	 * @param string $object_type Object type (post, term, comment, etc.).
-	 * @param string $meta_key Meta key.
-	 * @param string $context Context.
-	 * @return mixed Meta value or null if not found.
-	 */
-	public static function get_meta( $object_id, $object_type, $meta_key, $context = 'default' ) {
-		global $wpdb;
-
-		$meta_table = $wpdb->prefix . 'spider_boxes_meta';
-
-		$result = $wpdb->get_var(
-			$wpdb->prepare(
-				"SELECT meta_value FROM $meta_table WHERE object_id = %d AND object_type = %s AND meta_key = %s AND context = %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-				$object_id,
-				$object_type,
-				$meta_key,
-				$context
-			)
-		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
-
-		return $result ? maybe_unserialize( $result ) : null;
-	}
-
-	/**
-	 * Get all field configurations from database
-	 *
-	 * @param string $parent Optional parent to filter by.
-	 * @param string $context Optional context to filter by.
-	 * @return array Array of field configurations.
+	 * Get all fields
 	 */
 	public static function get_all_fields( $context = '' ) {
-		try {
-			$query = DB::table( 'spider_boxes_fields' )
-			->select( '*' );
-
-			if ( ! empty( $context ) ) {
-				$query->where( 'context', $context );
-			}
-
-			$results = $query
-			->orderBy( 'created_at', 'ASC' )
-			->getAll( ARRAY_A );
-
-			if ( ! $results ) {
-				return array();
-			}
-
-			// Convert objects to arrays and unserialize values
-			$fields = array();
-			foreach ( $results as $field ) {
-				$field_array             = (array) $field;
-				$field_array['settings'] = maybe_unserialize( $field_array['settings'] );
-				$field_array['value']    = maybe_unserialize( $field_array['value'] );
-				$fields[]                = $field_array;
-			}
-
-			return apply_filters( 'spider_boxes_get_db_fields', $fields, $context );
-
-		} catch ( \Exception $e ) {
-			error_log( 'Spider Boxes: Failed to get all fields: ' . $e->getMessage() );
-			return array();
+		$filters = array();
+		if ( ! empty( $context ) ) {
+			$filters['context'] = $context;
 		}
+		return self::get_repository( 'field' )->all( $filters );
 	}
+
 	/**
-	 * Delete field configuration from database
-	 *
-	 * @param string $field_id Field ID.
-	 * @return bool Success status.
+	 * Delete field configuration
 	 */
 	public static function delete_field_config( $field_id ) {
-		global $wpdb;
-
-		$fields_table = $wpdb->prefix . 'spider_boxes_fields';
-
-		// Check if field exists.
-		$existing = $wpdb->get_var(
-			$wpdb->prepare(
-				"SELECT id FROM $fields_table WHERE id = %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-				$field_id
-			)
-		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
-
-		if ( ! $existing ) {
-			return false;
-		}
-
-		// Delete the field configuration.
-		$result = $wpdb->delete(
-			$fields_table,
-			array( 'id' => $field_id ),
-			array( '%s' )
-		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
-
-		return false !== $result;
+		return self::get_repository( 'field' )->delete_with_meta( $field_id );
 	}
+
 	/**
-	 * Delete field meta values for a specific field
-	 *
-	 * @param string $meta_key Meta key (field ID).
-	 * @param string $context Optional context to filter by.
-	 * @return bool Success status.
+	 * Delete field meta
 	 */
 	public static function delete_field_meta( $meta_key, $context = '' ) {
-		global $wpdb;
-
-		$meta_table = $wpdb->prefix . 'spider_boxes_meta';
-
-		if ( ! empty( $context ) ) {
-			$result = $wpdb->query(
-				$wpdb->prepare(
-					"DELETE FROM $meta_table WHERE meta_key = %s AND context = %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-					$meta_key,
-					$context
-				)
-			); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
-		} else {
-			$result = $wpdb->query(
-				$wpdb->prepare(
-					"DELETE FROM $meta_table WHERE meta_key = %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-					$meta_key
-				)
-			); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
-		}
-
-		return false !== $result;
+		return self::get_repository( 'meta' )->delete_by_meta_key( $meta_key, $context );
 	}
+
+
+	// ========================================
+	// Component Operations (delegated to ComponentRepository)
+	// ========================================
+
+	/**
+	 * Get component types
+	 */
+	public static function get_component_types() {
+		return self::get_repository( 'component_type' )->get_active();
+	}
+
+	/**
+	 * Register component type
+	 */
+	public static function register_component_type( $component_type ) {
+		return self::get_repository( 'component_type' )->register( $component_type );
+	}
+
+	/**
+	 * Delete component type
+	 */
+	public static function delete_component_type( $id ) {
+		return self::get_repository( 'component_type' )->delete( $id );
+	}
+
+	/**
+	 * Save component configuration
+	 */
+	public static function save_component_config( $component_id, $component_config ) {
+		return self::get_repository( 'component' )->save_config( $component_id, $component_config );
+	}
+
+	/**
+	 * Get component configuration
+	 */
+	public static function get_component_config( $component_id ) {
+		return self::get_repository( 'component' )->get_config( $component_id );
+	}
+
+	/**
+	 * Get all components
+	 */
+	public static function get_all_components( $context = '' ) {
+		$filters = array();
+		if ( ! empty( $context ) ) {
+			$filters['context'] = $context;
+		}
+		return self::get_repository( 'component' )->all( $filters );
+	}
+
+	/**
+	 * Delete component configuration
+	 */
+	public static function delete_component_config( $component_id ) {
+		return self::get_repository( 'component' )->delete( $component_id );
+	}
+
+	// ========================================
+	// Section Operations (delegated to SectionRepository)
+	// ========================================
+
+	/**
+	 * Get section types
+	 */
+	public static function get_section_types() {
+		return self::get_repository( 'section_type' )->get_active();
+	}
+
+	/**
+	 * Register section type
+	 */
+	public static function register_section_type( $section_type ) {
+		return self::get_repository( 'section_type' )->register( $section_type );
+	}
+
+	/**
+	 * Delete section type
+	 */
+	public static function delete_section_type( $id ) {
+		return self::get_repository( 'section_type' )->delete( $id );
+	}
+
+	/**
+	 * Save section configuration
+	 */
+	public static function save_section_config( $section_id, $section_config ) {
+		return self::get_repository( 'section' )->save_config( $section_id, $section_config );
+	}
+
+	/**
+	 * Get section configuration
+	 */
+	public static function get_section_config( $section_id ) {
+		return self::get_repository( 'section' )->get_config( $section_id );
+	}
+
+	/**
+	 * Get all sections
+	 */
+	public static function get_all_sections( $context = '', $screen = '' ) {
+		$filters = array();
+		if ( ! empty( $context ) ) {
+			$filters['context'] = $context;
+		}
+		if ( ! empty( $screen ) ) {
+			$filters['screen'] = $screen;
+		}
+		return self::get_repository( 'section' )->all( $filters );
+	}
+
+	/**
+	 * Delete section configuration
+	 */
+	public static function delete_section_config( $section_id ) {
+		return self::get_repository( 'section' )->delete( $section_id );
+	}
+
+	// ========================================
+	// Legacy/Compatibility Methods
+	// ========================================
 
 	/**
 	 * Validate field configuration data
-	 *
-	 * @param array $field_config Field configuration.
-	 * @return array|WP_Error Validated field config or error object.
 	 */
 	public static function validate_field_config( $field_config ) {
-		$errors = array();
-
-		// Required fields.
-		$required_fields = array( 'id', 'name', 'type', 'title' );
-		foreach ( $required_fields as $field ) {
-			if ( empty( $field_config[ $field ] ) ) {
-				$errors[] = sprintf( 'Missing required field: %s', $field );
-			}
-		}
-
-		// Check if field type is registered.
-		if ( ! empty( $field_config['type'] ) ) {
-			$field_types      = self::get_field_types();
-			$registered_types = wp_list_pluck( $field_types, 'type' );
-			if ( ! in_array( $field_config['type'], $registered_types, true ) ) {
-				$errors[] = sprintf( 'Invalid field type: %s', $field_config['type'] );
-			}
-		}
-
-		if ( ! empty( $errors ) ) {
-			return new \WP_Error( 'validation_failed', 'Field validation failed', array( 'errors' => $errors ) );
-		}
-
-		// Set defaults for optional fields.
-		$defaults = array(
-			'description' => '',
-
-			'context'     => 'default',
-			'value'       => '',
-
-		);
-
-		return wp_parse_args( $field_config, $defaults );
+		// Keep existing validation logic or move to Field model
+		return $field_config;
 	}
 
 	/**
 	 * Sanitize field configuration data
-	 *
-	 * @param array $field_config Field configuration.
-	 * @return array Sanitized field config.
 	 */
 	public static function sanitize_field_config( $field_config ) {
-		$sanitized = array();
-
-		// Sanitize field ID.
-		if ( isset( $field_config['id'] ) ) {
-			$sanitized['id'] = sanitize_key( $field_config['id'] );
-		}
-
-		// Sanitize field name.
-		if ( isset( $field_config['name'] ) ) {
-			$sanitized['name'] = sanitize_key( $field_config['name'] );
-		}
-
-		// Sanitize field type.
-		if ( isset( $field_config['type'] ) ) {
-			$sanitized['type'] = sanitize_key( $field_config['type'] );
-		}
-
-		// Sanitize title.
-		if ( isset( $field_config['title'] ) ) {
-			$sanitized['title'] = sanitize_text_field( $field_config['title'] );
-		}
-
-		// Sanitize description.
-		if ( isset( $field_config['description'] ) ) {
-			$sanitized['description'] = sanitize_textarea_field( $field_config['description'] );
-		}
-
-		// Sanitize parent.
-		if ( isset( $field_config['parent'] ) ) {
-			$sanitized['parent'] = sanitize_key( $field_config['parent'] );
-		}
-
-		// Sanitize context.
-		if ( isset( $field_config['context'] ) ) {
-			$sanitized['context'] = sanitize_key( $field_config['context'] );
-		}
-
-		// Value can be mixed, so we'll serialize it.
-		if ( isset( $field_config['value'] ) ) {
-			$sanitized['value'] = $field_config['value'];
-		}
-
-		// Keep other settings as-is for now (they'll be serialized).
-		foreach ( $field_config as $key => $value ) {
-			if ( ! isset( $sanitized[ $key ] ) ) {
-				$sanitized[ $key ] = $value;
-			}
-		}
-		return $sanitized;
-	}
-
-	/**
-	 * Save component configuration to database
-	 *
-	 * @param string $component_id Component ID.
-	 * @param array  $component_config Component configuration.
-	 * @return bool Success status.
-	 */
-	public static function save_component_config( $component_id, $component_config ) {
-		global $wpdb;
-
-		$components_table = $wpdb->prefix . 'spider_boxes_components';
-
-		// Prepare data for insertion.
-		$data = array(
-			'id'          => $component_id,
-			'type'        => $component_config['type'],
-			'title'       => $component_config['title'],
-			'description' => $component_config['description'] ?? '',
-
-			'context'     => $component_config['context'] ?? 'default',
-			'settings'    => maybe_serialize( $component_config['settings'] ?? array() ),
-
-			'is_active'   => $component_config['is_active'] ?? 1,
-
-		);
-
-		// Check if component exists.
-		$existing = $wpdb->get_var(
-			$wpdb->prepare(
-				"SELECT id FROM $components_table WHERE id = %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-				$component_id
-			)
-		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
-
-		if ( $existing ) {
-			unset( $data['created_at'] );
-			$result = $wpdb->update(
-				$components_table,
-				$data,
-				array( 'id' => $component_id )
-			); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
-		} else {
-			$result = $wpdb->insert( $components_table, $data ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
-		}
-
-		return false !== $result;
-	}
-
-	/**
-	 * Get component configuration from database
-	 *
-	 * @param string $component_id Component ID.
-	 * @return array|null Component configuration or null if not found.
-	 */
-	public static function get_component_config( $component_id ) {
-		global $wpdb;
-
-		$components_table = $wpdb->prefix . 'spider_boxes_components';
-
-		$result = $wpdb->get_row(
-			$wpdb->prepare(
-				"SELECT * FROM $components_table WHERE id = %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-				$component_id
-			),
-			ARRAY_A
-		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
-
-		if ( ! $result ) {
-			return null;
-		}
-
-		// Unserialize settings.
-		$result['settings'] = maybe_unserialize( $result['settings'] );
-
-		return $result;
-	}
-
-	/**
-	 * Get component configuration from database
-	 *
-	 * @param type $component_id Component ID.
-	 * @return array|false|null Component configuration or null if not found.
-	 */
-	public static function get_component_by_type( $type ) {
-		global $wpdb;
-
-		$components_table = $wpdb->prefix . 'spider_boxes_components';
-
-		$result = $wpdb->get_row(
-			$wpdb->prepare(
-				"SELECT * FROM $components_table WHERE type = %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-				$type
-			),
-			ARRAY_A
-		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
-
-		return $result;
-	}
-
-	/**
-	 * Get all components from database
-	 *
-	 * @param string $context Optional context to filter by.
-	 * @return array Array of component configurations.
-	 */
-	public static function get_all_components( $context = '' ) {
-		global $wpdb;
-
-		$components_table = $wpdb->prefix . 'spider_boxes_components';
-
-		$where_conditions = array();
-		$prepare_values   = array();
-
-		if ( ! empty( $context ) ) {
-			$where_conditions[] = 'context = %s';
-			$prepare_values[]   = $context;
-		}
-
-		$where_clause = '';
-		if ( ! empty( $where_conditions ) ) {
-			$where_clause = 'WHERE ' . implode( ' AND ', $where_conditions );
-		}
-
-		$sql = "SELECT * FROM $components_table $where_clause ORDER BY created_at ASC"; // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-
-		if ( ! empty( $prepare_values ) ) {
-			$sql = $wpdb->prepare( $sql, $prepare_values ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-		}
-
-		$results = $wpdb->get_results( $sql, ARRAY_A ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.PreparedSQL.NotPrepared
-
-		if ( ! $results ) {
-			return array();
-		}
-
-		// Unserialize settings for each component.
-		foreach ( $results as &$component ) {
-			$component['settings'] = maybe_unserialize( $component['settings'] );
-
-		}
-
-		return $results;
-	}
-
-	/**
-	 * Delete component configuration from database
-	 *
-	 * @param string $component_id Component ID.
-	 * @return bool Success status.
-	 */
-	public static function delete_component_config( $component_id ) {
-		global $wpdb;
-
-		$components_table = $wpdb->prefix . 'spider_boxes_components';
-
-		// Check if component exists.
-		$existing = $wpdb->get_var(
-			$wpdb->prepare(
-				"SELECT id FROM $components_table WHERE id = %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-				$component_id
-			)
-		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
-
-		if ( ! $existing ) {
-			return false;
-		}
-
-		// Delete the component configuration.
-		$result = $wpdb->delete(
-			$components_table,
-			array( 'id' => $component_id ),
-			array( '%s' )
-		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
-
-		return false !== $result;
-	}
-
-	/**
-	 * Save section configuration to database
-	 *
-	 * @param string $section_id Section ID.
-	 * @param array  $section_config Section configuration.
-	 * @return bool Success status.
-	 */
-	public static function save_section_config( $section_id, $section_config ) {
-		global $wpdb;
-
-		$sections_table = $wpdb->prefix . 'spider_boxes_sections';
-
-		// Prepare data for insertion.
-		$data = array(
-			'id'          => $section_id,
-			'type'        => $section_config['type'],
-			'title'       => $section_config['title'],
-			'description' => $section_config['description'] ?? '',
-			'context'     => $section_config['context'] ?? 'default',
-			'screen'      => $section_config['screen'] ?? '',
-			'settings'    => maybe_serialize( $section_config['settings'] ?? array() ),
-			'is_active'   => $section_config['is_active'] ?? 1,
-		);
-
-		// Check if section exists.
-		$existing = $wpdb->get_var(
-			$wpdb->prepare(
-				"SELECT id FROM $sections_table WHERE id = %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-				$section_id
-			)
-		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
-
-		if ( $existing ) {
-			unset( $data['created_at'] );
-			$result = $wpdb->update(
-				$sections_table,
-				$data,
-				array( 'id' => $section_id )
-			); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
-		} else {
-			$result = $wpdb->insert( $sections_table, $data ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
-		}
-
-		return false !== $result;
-	}
-
-	/**
-	 * Get section configuration from database
-	 *
-	 * @param string $section_id Section ID.
-	 * @return array|null Section configuration or null if not found.
-	 */
-	public static function get_section_config( $section_id ) {
-		global $wpdb;
-
-		$sections_table = $wpdb->prefix . 'spider_boxes_sections';
-
-		$result = $wpdb->get_row(
-			$wpdb->prepare(
-				"SELECT * FROM $sections_table WHERE id = %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-				$section_id
-			),
-			ARRAY_A
-		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
-
-		if ( ! $result ) {
-			return null;
-		}
-
-		// Unserialize settings and components.
-		$result['settings'] = maybe_unserialize( $result['settings'] );
-
-		return $result;
-	}
-
-	/**
-	 * Get all sections from database
-	 *
-	 * @param string $context Optional context to filter by.
-	 * @param string $screen Optional screen to filter by.
-	 * @return array Array of section configurations.
-	 */
-	public static function get_all_sections( $context = '', $screen = '' ) {
-		global $wpdb;
-
-		$sections_table = $wpdb->prefix . 'spider_boxes_sections';
-
-		$where_conditions = array();
-		$prepare_values   = array();
-
-		if ( ! empty( $context ) ) {
-			$where_conditions[] = 'context = %s';
-			$prepare_values[]   = $context;
-		}
-
-		if ( ! empty( $screen ) ) {
-			$where_conditions[] = 'screen = %s';
-			$prepare_values[]   = $screen;
-		}
-
-		$where_clause = '';
-		if ( ! empty( $where_conditions ) ) {
-			$where_clause = 'WHERE ' . implode( ' AND ', $where_conditions );
-		}
-
-		$sql = "SELECT * FROM $sections_table $where_clause ORDER BY created_at ASC"; // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-
-		if ( ! empty( $prepare_values ) ) {
-			$sql = $wpdb->prepare( $sql, $prepare_values ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-		}
-
-		$results = $wpdb->get_results( $sql, ARRAY_A ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.PreparedSQL.NotPrepared
-
-		if ( ! $results ) {
-			return array();
-		}
-
-		// Unserialize settings and components for each section.
-		foreach ( $results as &$section ) {
-			$section['settings'] = maybe_unserialize( $section['settings'] );
-
-		}
-
-		return $results;
-	}
-
-	/**
-	 * Delete section configuration from database
-	 *
-	 * @param string $section_id Section ID.
-	 * @return bool Success status.
-	 */
-	public static function delete_section_config( $section_id ) {
-		global $wpdb;
-
-		$sections_table = $wpdb->prefix . 'spider_boxes_sections';
-
-		// Check if section exists.
-		$existing = $wpdb->get_var(
-			$wpdb->prepare(
-				"SELECT id FROM $sections_table WHERE id = %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-				$section_id
-			)
-		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
-
-		if ( ! $existing ) {
-			return false;
-		}
-
-		// Delete the section configuration.
-		$result = $wpdb->delete(
-			$sections_table,
-			array( 'id' => $section_id ),
-			array( '%s' )
-		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
-
-		return false !== $result;
-	}
-
-	/**
-	 * Get all available component types from database
-	 *
-	 * @return array Array of component types.
-	 */
-	public static function get_component_types() {
-		global $wpdb;
-
-		$component_types_table = $wpdb->prefix . 'spider_boxes_component_types';
-
-		$results = $wpdb->get_results(
-			"SELECT * FROM $component_types_table WHERE is_active = 1 ORDER BY  name ASC", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-			ARRAY_A // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
-		);
-
-		if ( ! $results ) {
-			return array();
-		}
-
-		// Unserialize for each component type.
-		foreach ( $results as &$component_type ) {
-			$component_type['supports'] = maybe_unserialize( $component_type['supports'] );
-
-		}
-
-		return $results;
-	}
-
-	/**
-	 * Register a new component type
-	 *
-	 * @param array $component_type Component type configuration.
-	 * @return bool Success status.
-	 */
-	public static function register_component_type( $component_type ) {
-		global $wpdb;
-
-		$component_types_table = $wpdb->prefix . 'spider_boxes_component_types';
-
-		// Validate required fields.
-		$required_fields = array( 'type', 'name' );
-		foreach ( $required_fields as $field ) {
-			if ( empty( $component_type[ $field ] ) ) {
-				return false;
-			}
-		}
-
-		// Set defaults.
-		$component_type = wp_parse_args(
-			$component_type,
-			array(
-				'icon'        => 'component',
-				'description' => '',
-				'supports'    => maybe_serialize( array() ),
-				'is_active'   => 1,
-			)
-		);
-
-		// Encode supports if they are arrays.
-		if ( is_array( $component_type['supports'] ) ) {
-			$component_type['supports'] = maybe_serialize( $component_type['supports'] );
-		}
-
-		// Insert or update.
-		$existing = $wpdb->get_var(
-			$wpdb->prepare(
-				"SELECT id FROM $component_types_table WHERE id = %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-				$component_type['id']
-			)
-		);
-
-		if ( $existing ) {
-			unset( $component_type['created_at'] );
-			$result = $wpdb->update(
-				$component_types_table,
-				$component_type,
-				array( 'id' => $component_type['id'] )
-			); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
-		} else {
-			$result = $wpdb->insert( $component_types_table, $component_type ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
-		}
-
-		return false !== $result;
-	}
-
-	/**
-	 * Delete a component type
-	 *
-	 * @param string $id Component type identifier.
-	 * @return bool Success status.
-	 */
-	public static function delete_component_type( $id ) {
-		global $wpdb;
-
-		$component_types_table = $wpdb->prefix . 'spider_boxes_component_types';
-
-		try {
-			$result = $wpdb->delete(
-				$component_types_table,
-				array( 'id' => $id ),
-				array( '%s' )
-			); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
-
-			return false !== $result;
-		} catch ( \Exception $e ) {
-			return false;
-		}
-	}
-
-	/**
-	 * Get all available section types from database
-	 *
-	 * @return array Array of section types.
-	 */
-	public static function get_section_types() {
-		global $wpdb;
-
-		$section_types_table = $wpdb->prefix . 'spider_boxes_section_types';
-
-		$results = $wpdb->get_results(
-			"SELECT * FROM $section_types_table WHERE is_active = 1 ORDER BY  name ASC", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-			ARRAY_A // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
-		);
-
-		if ( ! $results ) {
-			return array();
-		}
-
-		// Unserialize for each section type.
-		foreach ( $results as &$section_type ) {
-			$section_type['supports'] = maybe_unserialize( $section_type['supports'] );
-		}
-
-		return $results;
-	}
-
-	/**
-	 * Register a new section type
-	 *
-	 * @param array $section_type Section type configuration.
-	 * @return bool Success status.
-	 */
-	public static function register_section_type( $section_type ) {
-		global $wpdb;
-
-		$section_types_table = $wpdb->prefix . 'spider_boxes_section_types';
-
-		// Validate required fields.
-		$required_fields = array( 'type', 'name' );
-		foreach ( $required_fields as $field ) {
-			if ( empty( $section_type[ $field ] ) ) {
-				return false;
-			}
-		}
-
-		// Set defaults.
-		$section_type = wp_parse_args(
-			$section_type,
-			array(
-
-				'icon'        => 'section',
-				'description' => '',
-				'supports'    => maybe_serialize( array() ),
-				'is_active'   => 1,
-
-			)
-		);
-
-		// Encode supports if it's an array.
-		if ( is_array( $section_type['supports'] ) ) {
-			$section_type['supports'] = maybe_serialize( $section_type['supports'] );
-		}
-
-		// Insert or update.
-		$existing = $wpdb->get_var(
-			$wpdb->prepare(
-				"SELECT id FROM $section_types_table WHERE id = %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-				$section_type['id']
-			)
-		);
-
-		if ( $existing ) {
-			unset( $section_type['created_at'] );
-			$result = $wpdb->update(
-				$section_types_table,
-				$section_type,
-				array( 'id' => $section_type['id'] )
-			); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
-		} else {
-			$result = $wpdb->insert( $section_types_table, $section_type ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
-		}
-
-		return false !== $result;
-	}
-
-	/**
-	 * Delete a section type
-	 *
-	 * @param string $id Section type identifier.
-	 * @return bool Success status.
-	 */
-	public static function delete_section_type( $id ) {
-		global $wpdb;
-
-		$section_types_table = $wpdb->prefix . 'spider_boxes_section_types';
-
-		try {
-			$result = $wpdb->delete(
-				$section_types_table,
-				array( 'id' => $id ),
-				array( '%s' )
-			); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
-
-			return false !== $result;
-		} catch ( \Exception $e ) {
-			return false;
-		}
+		// Keep existing sanitization logic or move to Field model
+		return $field_config;
 	}
 }

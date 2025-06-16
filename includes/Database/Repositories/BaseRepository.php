@@ -9,11 +9,14 @@ namespace SpiderBoxes\Database\Repositories;
 
 use SpiderBoxes\Database\Contracts\RepositoryInterface;
 use StellarWP\DB\DB;
+use SpiderBoxes\Database\Traits\HasTimestamps;
 
 /**
  * Base Repository Class
  */
 abstract class BaseRepository implements RepositoryInterface {
+
+	use HasTimestamps;
 
 	/**
 	 * Table name
@@ -121,6 +124,7 @@ abstract class BaseRepository implements RepositoryInterface {
 		try {
 			$data = $this->prepare_data( $data );
 			$data = $this->serialize_data( $data );
+			$data = $this->add_timestamps( $data );
 
 			do_action( "spider_boxes_before_create_{$this->table}", $data );
 
@@ -153,6 +157,7 @@ abstract class BaseRepository implements RepositoryInterface {
 
 			$data = $this->prepare_data( $data );
 			$data = $this->serialize_data( $data );
+			$data = $this->add_timestamps( $data, true );
 
 			do_action( "spider_boxes_before_update_{$this->table}", $id, $data );
 
@@ -330,7 +335,49 @@ abstract class BaseRepository implements RepositoryInterface {
 			$data = $prepared;
 		}
 
+		// prepare settings
+		$settings = $data['settings'] ?? array();
+
+		// Separate database fields from settings fields
+		foreach ( $data as $key => $value ) {
+			if ( in_array( $key, $this->fillable, true ) ) {
+				// This is a database column
+				$db_data[ $key ] = $value;
+			} elseif ( $key !== '_original_settings' && $key !== 'settings' ) {
+				// This goes into settings (skip internal fields)
+				$settings[ $key ] = $value;
+			}
+		}
+
+		// Store settings array
+		$db_data['settings'] = $settings;
+
 		return apply_filters( "spider_boxes_prepare_data_{$this->table}", $data );
+	}
+
+
+	/**
+	 * Prepare data from database for model
+	 * Extracts settings into individual fields
+	 *
+	 * @param array $db_data Raw database data.
+	 * @return array Prepared data for model.
+	 */
+	public function prepare_from_database( array $db_data ) {
+		// Unserialize serializable fields first
+		$db_data = $this->unserialize_data( $db_data );
+
+		// Extract settings into individual fields
+		$settings = $db_data['settings'] ?? array();
+		if ( is_array( $settings ) ) {
+			// Merge settings into main data array
+			$db_data = array_merge( $db_data, $settings );
+		}
+
+		// Keep original settings for reference
+		$db_data['_original_settings'] = $settings;
+
+		return apply_filters( 'spider_boxes_prepare_field_from_database', $db_data, $settings );
 	}
 
 	/**
@@ -359,6 +406,7 @@ abstract class BaseRepository implements RepositoryInterface {
 		foreach ( $this->serializable as $field ) {
 			if ( isset( $data[ $field ] ) ) {
 				$data[ $field ] = maybe_unserialize( $data[ $field ] );
+
 			}
 		}
 

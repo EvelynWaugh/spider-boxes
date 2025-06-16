@@ -63,6 +63,17 @@ class SectionTypeController extends BaseController {
 				),
 			)
 		);
+
+		// Section type configuration endpoint.
+		register_rest_route(
+			$this->namespace,
+			'/section-types/(?P<type>[\\w-]+)/config',
+			array(
+				'methods'             => WP_REST_Server::READABLE,
+				'callback'            => array( $this, 'get_section_type_config' ),
+				'permission_callback' => array( $this, 'check_permissions' ),
+			)
+		);
 	}
 
 	/**
@@ -252,6 +263,56 @@ class SectionTypeController extends BaseController {
 			array(
 				'success' => true,
 				'message' => __( 'Section type deleted successfully', 'spider-boxes' ),
+			)
+		);
+	}
+
+		/**
+		 * Get section type configuration
+		 *
+		 * @param WP_REST_Request $request Request object.
+		 * @return WP_REST_Response|WP_Error
+		 */
+	public function get_section_type_config( $request ) {
+		$section_type = $request->get_param( 'type' );
+
+		if ( empty( $section_type ) ) {
+			return new WP_Error( 'missing_type', __( 'Section type is required', 'spider-boxes' ), array( 'status' => 400 ) );
+		}
+
+		// Get section type from registry and database.
+		$section_registry       = spider_boxes()->get_container()->get( 'sectionRegistry' );
+		$registry_section_types = $section_registry->get_section_types();
+		$db_section_types       = DatabaseManager::get_section_types();
+
+		// Find the section type.
+		$section_type_config = null;
+
+		// First check registry.
+		if ( isset( $registry_section_types[ $section_type ] ) ) {
+			$section_type_config         = $registry_section_types[ $section_type ];
+			$section_type_config['type'] = $section_type;
+		}
+
+		// Override with database config if exists.
+		foreach ( $db_section_types as $db_type ) {
+			if ( $db_type['type'] === $section_type ) {
+				$section_type_config = array_merge( $section_type_config ?? array(), $db_type );
+				break;
+			}
+		}
+
+		if ( ! $section_type_config ) {
+			return new WP_Error( 'section_type_not_found', __( 'Section type not found', 'spider-boxes' ), array( 'status' => 404 ) );
+		}
+
+		$config_generator = spider_boxes()->get_container()->get( 'fieldConfigGenerator' );
+		$config_fields    = $config_generator->generate_config_fields( $section_type_config );
+
+		return rest_ensure_response(
+			array(
+				'section_type'  => $section_type_config,
+				'config_fields' => $config_fields,
 			)
 		);
 	}

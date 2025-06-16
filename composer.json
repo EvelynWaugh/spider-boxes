@@ -22,7 +22,10 @@
     "autoload": {
         "psr-4": {
             "SpiderBoxes\\": "includes/"
-        }
+        },
+		 "files": [
+            "includes/functions.php"
+        ]
     },
     "config": {
         "optimize-autoloader": true,

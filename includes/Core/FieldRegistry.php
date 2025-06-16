@@ -8,6 +8,8 @@
 namespace SpiderBoxes\Core;
 
 use Illuminate\Support\Collection;
+use SpiderBoxes\Database\Repositories\FieldRepository;
+use SpiderBoxes\Database\Models\Field;
 
 /**
  * Field Registry Class
@@ -28,12 +30,19 @@ class FieldRegistry {
 	 */
 	private $fields;
 
+
+	/**
+	 * Field Repository.
+	 */
+	private $field_repository;
+
 	/**
 	 * Constructor
 	 */
-	public function __construct() {
-		$this->field_types = new Collection();
-		$this->fields      = new Collection();
+	public function __construct( FieldRepository $field_repository ) {
+		$this->field_types      = new Collection();
+		$this->fields           = new Collection();
+		$this->field_repository = $field_repository;
 
 		$this->register_default_field_types();
 		add_action( 'init', array( $this, 'init_hooks' ) );
@@ -194,6 +203,67 @@ class FieldRegistry {
 	}
 
 	/**
+	 * Get all fields (registry + database)
+	 */
+	public function get_all_fields( $parent = '', $context = '' ) {
+		// Get registry fields
+		$registry_fields = $this->get_fields( $parent );
+
+		// Get database fields
+		$criteria = array();
+
+		if ( ! empty( $parent ) ) {
+			$criteria['parent'] = $parent;
+		}
+
+		if ( ! empty( $context ) ) {
+			$criteria['context'] = $context;
+		}
+
+		$db_fields = $this->field_repository->all_as_models( $criteria );
+
+		// Merge them - database fields take precedence
+		$all_fields = new Collection();
+
+		// Add registry fields first
+		foreach ( $registry_fields as $id => $field_config ) {
+			$all_fields->put( $id, Field::from_registry( $id, $field_config ) );
+		}
+
+		// Add/override with database fields
+		foreach ( $db_fields as $db_field ) {
+			$all_fields->put( $db_field->get_attribute( 'id' ), $db_field );
+		}
+
+		return apply_filters( 'spider_boxes_get_all_fields', $all_fields, $parent, $context );
+	}
+
+	/**
+	 * Create field in database from visual builder
+	 */
+	public function create_database_field( $field_data ) {
+		$field = Field::create( $field_data );
+
+		if ( ! $field->is_valid() ) {
+			return new \WP_Error( 'validation_failed', 'Field validation failed', $field->get_validation_errors() );
+		}
+
+		if ( $field->save() ) {
+			do_action( 'spider_boxes_database_field_created', $field );
+			return $field;
+		}
+
+		return new \WP_Error( 'save_failed', 'Failed to save field to database' );
+	}
+
+		/**
+		 * Check if field exists in either registry or database
+		 */
+	public function field_exists_anywhere( $id ) {
+		return $this->field_exists( $id ) || $this->field_repository->find( $id ) !== null;
+	}
+
+	/**
 	 * Get registered field types
 	 *
 	 * @return Collection
@@ -295,21 +365,12 @@ class FieldRegistry {
 	/**
 	 * Get registered fields
 	 *
-	 * @param string $parent Optional. Parent component ID to filter by
 	 * @return Collection
 	 */
-	public function get_fields( $parent = '' ) {
+	public function get_fields() {
 		$fields = $this->fields;
 
-		if ( ! empty( $parent ) ) {
-			$fields = $fields->filter(
-				function ( $field ) use ( $parent ) {
-					return $field['parent'] === $parent;
-				}
-			);
-		}
-
-		return apply_filters( 'spider_boxes_get_fields', $fields, $parent );
+		return apply_filters( 'spider_boxes_get_fields', $fields );
 	}
 
 	/**
